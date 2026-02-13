@@ -6,6 +6,9 @@ import { ComptesList } from "./components/comptes/ComptesList";
 import { Journal } from "./components/ecritures/Journal";
 import { GrandLivre } from "./components/grand-livre/GrandLivre";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { Balance } from "./components/balance/Balance";
+import { CompteResultat } from "./components/resultat/CompteResultat";
+import { Bilan } from "./components/bilan/Bilan";
 
 type AuthState = "checking" | "no-users" | "login" | "authenticated";
 type PageType =
@@ -78,6 +81,12 @@ function MainApp() {
   // Rendu de la page courante
   const renderPage = () => {
     switch (currentPage) {
+      case "bilan":
+        return <Bilan />;
+      case "resultat":
+        return <CompteResultat />;
+      case "balance":
+        return <Balance />;
       case "comptes":
         return <ComptesList />;
       case "journal":
@@ -146,6 +155,17 @@ function MainApp() {
                   className="w-full text-left p-2 hover:bg-accent rounded-md"
                 >
                   📚 Voir Grand Livre
+                </button>
+                <button
+                  onClick={() => setCurrentPage("bilan")}
+                  className={`w-full p-2 rounded-md text-left flex items-center gap-2 ${
+                    currentPage === "bilan"
+                      ? "bg-accent text-accent-foreground"
+                      : "hover:bg-accent/50"
+                  }`}
+                >
+                  <span>🏦</span>
+                  <span>Bilan</span>
                 </button>
               </div>
               <div className="p-4 border rounded-lg">
@@ -324,6 +344,17 @@ function MainApp() {
                 <span>📋</span>
                 <span>Plan comptable</span>
               </button>
+              <button
+                onClick={() => setCurrentPage("bilan")}
+                className={`w-full p-2 rounded-md text-left flex items-center gap-2 ${
+                  currentPage === "bilan"
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-accent/50"
+                }`}
+              >
+                <span>🏦</span>
+                <span>Bilan</span>
+              </button>
             </nav>
           </div>
 
@@ -335,6 +366,17 @@ function MainApp() {
             >
               <span>🚪</span>
               <span>Déconnexion</span>
+            </button>
+            <button
+              onClick={() => setCurrentPage("resultat")}
+              className={`w-full p-2 rounded-md text-left flex items-center gap-2 ${
+                currentPage === "resultat"
+                  ? "bg-accent text-accent-foreground"
+                  : "hover:bg-accent/50"
+              }`}
+            >
+              <span>📊</span>
+              <span>Compte de résultat</span>
             </button>
             <div className="text-xs text-muted-foreground text-center">
               🇧🇮 MiniCompta v1.0
