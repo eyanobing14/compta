@@ -12,6 +12,17 @@ export async function getExercices(): Promise<Exercice[]> {
 }
 
 /**
+ * Récupère l'exercice actif (non clos)
+ */
+export async function getExerciceActif(): Promise<Exercice | null> {
+  const db = await getDb();
+  const result = await db.select<Exercice[]>(
+    "SELECT * FROM exercices WHERE est_clos = FALSE ORDER BY date_debut DESC LIMIT 1",
+  );
+  return result.length > 0 ? result[0] : null;
+}
+
+/**
  * Crée un nouvel exercice
  */
 export async function createExercice(data: ExerciceFormData): Promise<number> {

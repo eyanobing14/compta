@@ -62,18 +62,107 @@ export function ComptesList() {
 
   const getTypeBadgeColor = (type: string | null) => {
     const colors: Record<string, string> = {
-      ACTIF: "bg-blue-50 text-blue-700",
-      PASSIF: "bg-purple-50 text-purple-700",
-      PRODUIT: "bg-green-50 text-green-700",
-      CHARGE: "bg-orange-50 text-orange-700",
-      TRESORERIE: "bg-cyan-50 text-cyan-700",
+      ACTIF: "bg-blue-50 text-blue-700 border-blue-200",
+      PASSIF: "bg-purple-50 text-purple-700 border-purple-200",
+      PRODUIT: "bg-green-50 text-green-700 border-green-200",
+      CHARGE: "bg-orange-50 text-orange-700 border-orange-200",
+      TRESORERIE: "bg-cyan-50 text-cyan-700 border-cyan-200",
     };
-    return type && colors[type] ? colors[type] : "bg-gray-50 text-gray-700";
+    return type && colors[type]
+      ? colors[type]
+      : "bg-gray-50 text-gray-700 border-gray-200";
+  };
+
+  const getTypeIcon = (type: string | null) => {
+    switch (type) {
+      case "ACTIF":
+        return (
+          <svg
+            className="w-3 h-3 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+            />
+          </svg>
+        );
+      case "PASSIF":
+        return (
+          <svg
+            className="w-3 h-3 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+            />
+          </svg>
+        );
+      case "PRODUIT":
+        return (
+          <svg
+            className="w-3 h-3 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        );
+      case "CHARGE":
+        return (
+          <svg
+            className="w-3 h-3 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+            />
+          </svg>
+        );
+      case "TRESORERIE":
+        return (
+          <svg
+            className="w-3 h-3 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        );
+      default:
+        return null;
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="p-8 flex justify-center items-center h-64">
         <svg
           className="animate-spin h-8 w-8 text-gray-900"
           fill="none"
@@ -112,7 +201,7 @@ export function ComptesList() {
             setEditingCompte(null);
             setShowForm(true);
           }}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors flex items-center gap-2"
+          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors flex items-center gap-2 cursor-pointer"
         >
           <svg
             className="w-4 h-4"
@@ -131,29 +220,44 @@ export function ComptesList() {
         </button>
       </div>
 
-      {/* Filtres */}
+      {/* Filtres avec SVG */}
       <div className="mb-6 flex gap-2 flex-wrap">
         <button
           onClick={() => setFilterType("TOUS")}
-          className={`px-3 py-1 text-xs font-medium uppercase tracking-wider border ${
+          className={`px-4 py-2 text-sm font-medium border rounded-md flex items-center gap-2 transition-colors cursor-pointer ${
             filterType === "TOUS"
               ? "bg-gray-900 text-white border-gray-900"
               : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
           }`}
         >
-          Tous
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+          Tous les comptes
         </button>
         {Object.entries(TYPE_COMPTE_LABELS).map(([type, label]) => (
           <button
             key={type}
             onClick={() => setFilterType(type as TypeCompte)}
-            className={`px-3 py-1 text-xs font-medium uppercase tracking-wider border ${
+            className={`px-4 py-2 text-sm font-medium border rounded-md flex items-center gap-2 transition-colors cursor-pointer ${
               filterType === type
                 ? "bg-gray-900 text-white border-gray-900"
                 : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
             }`}
           >
-            {label}
+            {getTypeIcon(type)}
+            <span>{label.replace(/^[^\s]+\s/, "")}</span>{" "}
+            {/* Retire l'emoji du label */}
           </button>
         ))}
       </div>
@@ -168,7 +272,7 @@ export function ComptesList() {
               </h2>
               <button
                 onClick={() => setShowForm(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
               >
                 <svg
                   className="w-5 h-5"
@@ -199,51 +303,60 @@ export function ComptesList() {
 
       {/* Tableau */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm">
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md">
           {error}
         </div>
       )}
 
-      <div className="border border-gray-200 overflow-hidden">
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-100">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Numéro
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Libellé
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Type
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
-            {comptes.map((compte) => (
-              <tr key={compte.numero} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-sm text-gray-900">
+          <tbody className="divide-y divide-gray-200 bg-white">
+            {comptes.map((compte, index) => (
+              <tr
+                key={compte.numero}
+                className={`hover:bg-gray-50 transition-colors ${
+                  index % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                }`}
+              >
+                <td className="px-6 py-4 font-mono text-sm font-medium text-gray-900">
                   {compte.numero}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900">
+                <td className="px-6 py-4 text-sm text-gray-700">
                   {compte.libelle}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-6 py-4">
                   {compte.type_compte && (
                     <span
-                      className={`inline-flex items-center px-2 py-1 text-xs font-medium ${getTypeBadgeColor(compte.type_compte)}`}
+                      className={`inline-flex items-center px-3 py-1 text-xs font-medium border rounded-full ${getTypeBadgeColor(compte.type_compte)}`}
                     >
-                      {TYPE_COMPTE_LABELS[compte.type_compte]}
+                      {getTypeIcon(compte.type_compte)}
+                      {TYPE_COMPTE_LABELS[compte.type_compte].replace(
+                        /^[^\s]+\s/,
+                        "",
+                      )}
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-6 py-4 text-right">
                   <button
                     onClick={() => handleEdit(compte)}
-                    className="p-1 text-gray-400 hover:text-blue-600 transition-colors mr-2"
+                    className="p-2 text-gray-400 hover:text-blue-600 transition-colors mr-1 cursor-pointer rounded-md hover:bg-blue-50"
                     title="Modifier"
                   >
                     <svg
@@ -262,7 +375,7 @@ export function ComptesList() {
                   </button>
                   <button
                     onClick={() => handleDelete(compte.numero, compte.libelle)}
-                    className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                    className="p-2 text-gray-400 hover:text-red-600 transition-colors cursor-pointer rounded-md hover:bg-red-50"
                     title="Supprimer"
                   >
                     <svg
@@ -284,8 +397,26 @@ export function ComptesList() {
             ))}
             {comptes.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                  Aucun compte trouvé
+                <td
+                  colSpan={4}
+                  className="px-6 py-12 text-center text-gray-500"
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <svg
+                      className="w-12 h-12 text-gray-300"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1}
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                      />
+                    </svg>
+                    <p>Aucun compte trouvé</p>
+                  </div>
                 </td>
               </tr>
             )}

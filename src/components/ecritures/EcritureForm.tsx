@@ -1,104 +1,161 @@
 import React, { useState, useEffect } from "react";
-import { ExerciceFormData } from "../../types/exercice";
-import { createExercice, checkExerciceOverlap } from "../../lib/exercice.db";
-import { Spinner } from "./Spinner"; // ← IMPORT MANQUANT AJOUTÉ
+import { EcritureFormData } from "../../types/ecritures";
+import {
+  createEcriture,
+  getLastNumeroPiece,
+  searchComptesForEcriture,
+} from "../../lib/ecritures.db";
+import { CompteSearch } from "./CompteSearch";
+import { Spinner } from "../exercices/Spinner";
 
-interface ExerciceFormProps {
-  onSuccess: () => void;
+interface EcritureFormProps {
+  onSubmit: (data: EcritureFormData) => Promise<void>;
   onCancel: () => void;
-  initialData?: Partial<ExerciceFormData>;
+  initialData?: Partial<EcritureFormData>;
 }
 
-export function ExerciceForm({
-  onSuccess,
+export function EcritureForm({
+  onSubmit,
   onCancel,
   initialData,
-}: ExerciceFormProps) {
-  const [formData, setFormData] = useState<ExerciceFormData>({
-    nom_entreprise: initialData?.nom_entreprise || "Mon Entreprise",
-    nom_exercice:
-      initialData?.nom_exercice || `Exercice ${new Date().getFullYear()}`,
-    date_debut: initialData?.date_debut || `${new Date().getFullYear()}-01-01`,
-    date_fin: initialData?.date_fin || `${new Date().getFullYear()}-12-31`,
+}: EcritureFormProps) {
+  const [formData, setFormData] = useState<EcritureFormData>({
+    date: initialData?.date || new Date().toISOString().split("T")[0],
+    libelle: initialData?.libelle || "",
+    compte_debit: initialData?.compte_debit || "",
+    compte_credit: initialData?.compte_credit || "",
+    montant: initialData?.montant || "",
+    numero_piece: initialData?.numero_piece || "", // Ne pas générer automatiquement
+    observation: initialData?.observation || "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [overlapWarning, setOverlapWarning] = useState<string | null>(null);
+  const [isGeneratingPiece, setIsGeneratingPiece] = useState(false);
 
-  // Vérification des chevauchements en temps réel
+  // États pour le dropdown des comptes
+  const [comptesDebit, setComptesDebit] = useState<
+    Array<{ numero: string; libelle: string }>
+  >([]);
+  const [comptesCredit, setComptesCredit] = useState<
+    Array<{ numero: string; libelle: string }>
+  >([]);
+  const [showDebitDropdown, setShowDebitDropdown] = useState(false);
+  const [showCreditDropdown, setShowCreditDropdown] = useState(false);
+  const [searchDebitTerm, setSearchDebitTerm] = useState(
+    initialData?.compte_debit || "",
+  );
+  const [searchCreditTerm, setSearchCreditTerm] = useState(
+    initialData?.compte_credit || "",
+  );
+  const [isSearchingDebit, setIsSearchingDebit] = useState(false);
+  const [isSearchingCredit, setIsSearchingCredit] = useState(false);
+
+  // NE PAS générer automatiquement le numéro de pièce
+  // Supprimer ou commenter le useEffect qui appelait getLastNumeroPiece
+
+  // Debounce pour la recherche des comptes débit
   useEffect(() => {
-    const checkOverlap = async () => {
-      if (formData.date_debut && formData.date_fin) {
-        try {
-          const result = await checkExerciceOverlap(
-            formData.date_debut,
-            formData.date_fin,
-          );
-          if (result.overlap && result.exercices_conflits) {
-            const conflits = result.exercices_conflits
-              .map((e) => e.nom_exercice)
-              .join(", ");
-            setOverlapWarning(
-              `Attention: Cette période chevauche l'exercice ${conflits}`,
-            );
-          } else {
-            setOverlapWarning(null);
-          }
-        } catch (error) {
-          console.error("Erreur vérification chevauchement:", error);
-        }
+    const searchDebit = async () => {
+      if (searchDebitTerm.length < 2) {
+        setComptesDebit([]);
+        return;
+      }
+
+      setIsSearchingDebit(true);
+      try {
+        const results = await searchComptesForEcriture(searchDebitTerm);
+        setComptesDebit(
+          results.filter((c) => c.numero !== formData.compte_credit),
+        );
+      } catch (error) {
+        console.error("Erreur recherche comptes débit:", error);
+      } finally {
+        setIsSearchingDebit(false);
       }
     };
 
-    const timeoutId = setTimeout(checkOverlap, 500);
+    const timeoutId = setTimeout(searchDebit, 300);
     return () => clearTimeout(timeoutId);
-  }, [formData.date_debut, formData.date_fin]);
+  }, [searchDebitTerm, formData.compte_credit]);
+
+  // Debounce pour la recherche des comptes crédit
+  useEffect(() => {
+    const searchCredit = async () => {
+      if (searchCreditTerm.length < 2) {
+        setComptesCredit([]);
+        return;
+      }
+
+      setIsSearchingCredit(true);
+      try {
+        const results = await searchComptesForEcriture(searchCreditTerm);
+        setComptesCredit(
+          results.filter((c) => c.numero !== formData.compte_debit),
+        );
+      } catch (error) {
+        console.error("Erreur recherche comptes crédit:", error);
+      } finally {
+        setIsSearchingCredit(false);
+      }
+    };
+
+    const timeoutId = setTimeout(searchCredit, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchCreditTerm, formData.compte_debit]);
+
+  // Fonction pour générer manuellement un numéro de pièce (optionnel)
+  const handleGeneratePiece = async () => {
+    setIsGeneratingPiece(true);
+    try {
+      const lastNumero = await getLastNumeroPiece();
+      setFormData((prev) => ({ ...prev, numero_piece: lastNumero }));
+    } catch (error) {
+      console.error("Erreur génération numéro pièce:", error);
+    } finally {
+      setIsGeneratingPiece(false);
+    }
+  };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
-    const newWarnings: Record<string, string> = {};
 
-    if (!formData.nom_entreprise.trim()) {
-      newErrors.nom_entreprise = "Le nom de l'entreprise est requis";
+    if (!formData.date) {
+      newErrors.date = "La date est requise";
     }
 
-    if (!formData.nom_exercice.trim()) {
-      newErrors.nom_exercice = "Le nom de l'exercice est requis";
+    if (!formData.libelle.trim()) {
+      newErrors.libelle = "Le libellé est requis";
     }
 
-    if (!formData.date_debut) {
-      newErrors.date_debut = "La date de début est requise";
+    if (!formData.compte_debit) {
+      newErrors.compte_debit = "Le compte débit est requis";
     }
 
-    if (!formData.date_fin) {
-      newErrors.date_fin = "La date de fin est requise";
+    if (!formData.compte_credit) {
+      newErrors.compte_credit = "Le compte crédit est requis";
     }
 
-    if (formData.date_debut && formData.date_fin) {
-      if (formData.date_debut >= formData.date_fin) {
-        newErrors.date_fin = "La date de fin doit être après la date de début";
-      } else {
-        const debut = new Date(formData.date_debut);
-        const fin = new Date(formData.date_fin);
-        const diffMois =
-          (fin.getFullYear() - debut.getFullYear()) * 12 +
-          (fin.getMonth() - debut.getMonth());
+    if (
+      formData.compte_debit &&
+      formData.compte_credit &&
+      formData.compte_debit === formData.compte_credit
+    ) {
+      newErrors.compte_credit = "Les comptes doivent être différents";
+    }
 
-        if (diffMois < 1) {
-          newErrors.date_fin = "L'exercice doit faire au moins 1 mois";
-        }
-
-        if (diffMois > 24) {
-          newWarnings.date_fin =
-            "L'exercice dépasse 2 ans - assurez-vous que c'est intentionnel";
-        }
+    if (!formData.montant) {
+      newErrors.montant = "Le montant est requis";
+    } else {
+      const montant = parseFloat(formData.montant);
+      if (isNaN(montant) || montant <= 0) {
+        newErrors.montant = "Le montant doit être un nombre positif";
       }
     }
 
+    // NE PAS valider le numéro de pièce - il peut être vide
+
     setErrors(newErrors);
-    setWarnings(newWarnings);
     return Object.keys(newErrors).length === 0;
   };
 
@@ -107,152 +164,71 @@ export function ExerciceForm({
 
     if (!validate()) return;
 
-    // Vérification finale des chevauchements
-    try {
-      const overlap = await checkExerciceOverlap(
-        formData.date_debut,
-        formData.date_fin,
-      );
-      if (overlap.overlap) {
-        if (
-          !confirm(
-            "Cette période chevauche un exercice existant. Voulez-vous continuer ?",
-          )
-        ) {
-          return;
-        }
-      }
-    } catch (error) {
-      console.error("Erreur vérification chevauchement:", error);
-    }
-
     setIsLoading(true);
     try {
-      await createExercice(formData);
-      onSuccess();
+      await onSubmit(formData);
     } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "Erreur lors de la création",
-      );
+      console.error("Erreur soumission formulaire:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleCompteSelect =
+    (type: "debit" | "credit") =>
+    (compte: { numero: string; libelle: string }) => {
+      setFormData((prev) => ({
+        ...prev,
+        [`compte_${type}`]: compte.numero,
+      }));
+
+      if (type === "debit") {
+        setSearchDebitTerm(compte.numero);
+        setShowDebitDropdown(false);
+      } else {
+        setSearchCreditTerm(compte.numero);
+        setShowCreditDropdown(false);
+      }
+
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[`compte_${type}`];
+        if (
+          type === "credit" &&
+          prev.compte_credit === "Les comptes doivent être différents"
+        ) {
+          delete newErrors.compte_credit;
+        }
+        return newErrors;
+      });
+    };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Nom entreprise */}
-      <div>
-        <label
-          htmlFor="nom_entreprise"
-          className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
-        >
-          Nom de l'entreprise <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <input
-            type="text"
-            id="nom_entreprise"
-            name="nom_entreprise"
-            value={formData.nom_entreprise}
-            onChange={(e) => {
-              setFormData((prev) => ({
-                ...prev,
-                nom_entreprise: e.target.value,
-              }));
-              setErrors((prev) => ({ ...prev, nom_entreprise: "" }));
-            }}
-            className={`w-full h-10 pl-10 pr-4 text-sm border ${errors.nom_entreprise ? "border-red-500" : "border-gray-300"} bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors`}
-            placeholder="Nom de votre entreprise"
-          />
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-            />
-          </svg>
-        </div>
-        {errors.nom_entreprise && (
-          <p className="mt-1 text-xs text-red-500">{errors.nom_entreprise}</p>
-        )}
-      </div>
-
-      {/* Nom exercice */}
-      <div>
-        <label
-          htmlFor="nom_exercice"
-          className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
-        >
-          Nom de l'exercice <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <input
-            type="text"
-            id="nom_exercice"
-            name="nom_exercice"
-            value={formData.nom_exercice}
-            onChange={(e) => {
-              setFormData((prev) => ({
-                ...prev,
-                nom_exercice: e.target.value,
-              }));
-              setErrors((prev) => ({ ...prev, nom_exercice: "" }));
-            }}
-            className={`w-full h-10 pl-10 pr-4 text-sm border ${errors.nom_exercice ? "border-red-500" : "border-gray-300"} bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors`}
-            placeholder="Ex: Exercice 2025"
-          />
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-            />
-          </svg>
-        </div>
-        {errors.nom_exercice && (
-          <p className="mt-1 text-xs text-red-500">{errors.nom_exercice}</p>
-        )}
-      </div>
-
-      {/* Dates */}
+      {/* Date et Numéro pièce */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label
-            htmlFor="date_debut"
+            htmlFor="date"
             className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
           >
-            Date de début <span className="text-red-500">*</span>
+            Date <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <input
               type="date"
-              id="date_debut"
-              name="date_debut"
-              value={formData.date_debut}
+              id="date"
+              value={formData.date}
               onChange={(e) => {
-                setFormData((prev) => ({
-                  ...prev,
-                  date_debut: e.target.value,
-                }));
-                setErrors((prev) => ({ ...prev, date_debut: "" }));
+                setFormData((prev) => ({ ...prev, date: e.target.value }));
+                setErrors((prev) => ({ ...prev, date: "" }));
               }}
-              className={`w-full h-10 pl-10 pr-4 text-sm border ${errors.date_debut ? "border-red-500" : "border-gray-300"} bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors`}
+              className={`w-full h-10 pl-10 pr-4 text-sm border ${
+                errors.date ? "border-red-500" : "border-gray-300"
+              } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
             />
             <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -265,32 +241,37 @@ export function ExerciceForm({
               />
             </svg>
           </div>
-          {errors.date_debut && (
-            <p className="mt-1 text-xs text-red-500">{errors.date_debut}</p>
+          {errors.date && (
+            <p className="mt-1 text-xs text-red-500">{errors.date}</p>
           )}
         </div>
 
         <div>
           <label
-            htmlFor="date_fin"
+            htmlFor="numero_piece"
             className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
           >
-            Date de fin <span className="text-red-500">*</span>
+            N° Pièce <span className="text-gray-400">(optionnel)</span>
           </label>
           <div className="relative">
             <input
-              type="date"
-              id="date_fin"
-              name="date_fin"
-              value={formData.date_fin}
+              type="text"
+              id="numero_piece"
+              value={formData.numero_piece}
               onChange={(e) => {
-                setFormData((prev) => ({ ...prev, date_fin: e.target.value }));
-                setErrors((prev) => ({ ...prev, date_fin: "" }));
+                setFormData((prev) => ({
+                  ...prev,
+                  numero_piece: e.target.value,
+                }));
+                setErrors((prev) => ({ ...prev, numero_piece: "" }));
               }}
-              className={`w-full h-10 pl-10 pr-4 text-sm border ${errors.date_fin ? "border-red-500" : "border-gray-300"} bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors`}
+              className={`w-full h-10 pl-10 pr-10 text-sm border ${
+                errors.numero_piece ? "border-red-500" : "border-gray-300"
+              } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
+              placeholder="Optionnel - laisser vide si non nécessaire"
             />
             <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -299,26 +280,232 @@ export function ExerciceForm({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
               />
             </svg>
+            <button
+              type="button"
+              onClick={handleGeneratePiece}
+              disabled={isGeneratingPiece}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded transition-colors cursor-pointer disabled:opacity-50"
+              title="Générer automatiquement"
+            >
+              {isGeneratingPiece ? <Spinner size="sm" /> : "Générer"}
+            </button>
           </div>
-          {errors.date_fin && (
-            <p className="mt-1 text-xs text-red-500">{errors.date_fin}</p>
-          )}
-          {warnings.date_fin && (
-            <p className="mt-1 text-xs text-amber-600">
-              ⚠️ {warnings.date_fin}
-            </p>
+          {errors.numero_piece && (
+            <p className="mt-1 text-xs text-red-500">{errors.numero_piece}</p>
           )}
         </div>
       </div>
 
-      {/* Avertissement chevauchement */}
-      {overlapWarning && (
-        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-700 text-sm flex items-center gap-2">
+      {/* Libellé */}
+      <div>
+        <label
+          htmlFor="libelle"
+          className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
+        >
+          Libellé <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          id="libelle"
+          value={formData.libelle}
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, libelle: e.target.value }));
+            setErrors((prev) => ({ ...prev, libelle: "" }));
+          }}
+          className={`w-full h-10 px-4 text-sm border ${
+            errors.libelle ? "border-red-500" : "border-gray-300"
+          } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
+          placeholder="Description de l'écriture"
+        />
+        {errors.libelle && (
+          <p className="mt-1 text-xs text-red-500">{errors.libelle}</p>
+        )}
+      </div>
+
+      {/* Comptes avec dropdown */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label
+            htmlFor="compte_debit"
+            className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
+          >
+            Compte débit <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <div className="relative">
+              <input
+                type="text"
+                id="compte_debit"
+                value={searchDebitTerm}
+                onChange={(e) => {
+                  setSearchDebitTerm(e.target.value);
+                  setFormData((prev) => ({
+                    ...prev,
+                    compte_debit: e.target.value,
+                  }));
+                  setErrors((prev) => ({ ...prev, compte_debit: "" }));
+                  setShowDebitDropdown(true);
+                }}
+                onFocus={() => setShowDebitDropdown(true)}
+                className={`w-full h-10 pl-10 pr-10 text-sm border ${
+                  errors.compte_debit ? "border-red-500" : "border-gray-300"
+                } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
+                placeholder="Rechercher compte débit..."
+              />
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              {isSearchingDebit && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Spinner size="sm" />
+                </div>
+              )}
+            </div>
+
+            {/* Dropdown des résultats débit */}
+            {showDebitDropdown && comptesDebit.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 border border-gray-200 bg-white shadow-lg max-h-64 overflow-auto">
+                {comptesDebit.map((compte) => (
+                  <button
+                    key={compte.numero}
+                    type="button"
+                    onClick={() => handleCompteSelect("debit")(compte)}
+                    className="w-full px-4 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-0 group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm font-medium text-gray-900">
+                        {compte.numero}
+                      </span>
+                      <span className="text-sm text-gray-600 group-hover:text-gray-900">
+                        {compte.libelle}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {errors.compte_debit && (
+            <p className="mt-1 text-xs text-red-500">{errors.compte_debit}</p>
+          )}
+        </div>
+
+        <div>
+          <label
+            htmlFor="compte_credit"
+            className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
+          >
+            Compte crédit <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <div className="relative">
+              <input
+                type="text"
+                id="compte_credit"
+                value={searchCreditTerm}
+                onChange={(e) => {
+                  setSearchCreditTerm(e.target.value);
+                  setFormData((prev) => ({
+                    ...prev,
+                    compte_credit: e.target.value,
+                  }));
+                  setErrors((prev) => ({ ...prev, compte_credit: "" }));
+                  setShowCreditDropdown(true);
+                }}
+                onFocus={() => setShowCreditDropdown(true)}
+                className={`w-full h-10 pl-10 pr-10 text-sm border ${
+                  errors.compte_credit ? "border-red-500" : "border-gray-300"
+                } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
+                placeholder="Rechercher compte crédit..."
+              />
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              {isSearchingCredit && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Spinner size="sm" />
+                </div>
+              )}
+            </div>
+
+            {/* Dropdown des résultats crédit */}
+            {showCreditDropdown && comptesCredit.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 border border-gray-200 bg-white shadow-lg max-h-64 overflow-auto">
+                {comptesCredit.map((compte) => (
+                  <button
+                    key={compte.numero}
+                    type="button"
+                    onClick={() => handleCompteSelect("credit")(compte)}
+                    className="w-full px-4 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-0 group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm font-medium text-gray-900">
+                        {compte.numero}
+                      </span>
+                      <span className="text-sm text-gray-600 group-hover:text-gray-900">
+                        {compte.libelle}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {errors.compte_credit && (
+            <p className="mt-1 text-xs text-red-500">{errors.compte_credit}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Montant */}
+      <div>
+        <label
+          htmlFor="montant"
+          className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
+        >
+          Montant (FBU) <span className="text-red-500">*</span>
+        </label>
+        <div className="relative">
+          <input
+            type="number"
+            id="montant"
+            value={formData.montant}
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, montant: e.target.value }));
+              setErrors((prev) => ({ ...prev, montant: "" }));
+            }}
+            step="1"
+            min="1"
+            className={`w-full h-10 pl-10 pr-4 text-sm border ${
+              errors.montant ? "border-red-500" : "border-gray-300"
+            } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
+            placeholder="0"
+          />
           <svg
-            className="w-5 h-5 flex-shrink-0"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -327,12 +514,34 @@ export function ExerciceForm({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          <span>{overlapWarning}</span>
         </div>
-      )}
+        {errors.montant && (
+          <p className="mt-1 text-xs text-red-500">{errors.montant}</p>
+        )}
+      </div>
+
+      {/* Observation */}
+      <div>
+        <label
+          htmlFor="observation"
+          className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
+        >
+          Observation <span className="text-gray-400">(optionnel)</span>
+        </label>
+        <textarea
+          id="observation"
+          value={formData.observation}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, observation: e.target.value }))
+          }
+          rows={3}
+          className="w-full px-4 py-2 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors resize-none cursor-text"
+          placeholder="Informations complémentaires..."
+        />
+      </div>
 
       {/* Boutons */}
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
@@ -340,19 +549,19 @@ export function ExerciceForm({
           type="button"
           onClick={onCancel}
           disabled={isLoading}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50"
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 cursor-pointer"
         >
           Annuler
         </button>
         <button
           type="submit"
           disabled={isLoading}
-          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 flex items-center gap-2"
+          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 flex items-center gap-2 min-w-[140px] justify-center cursor-pointer"
         >
           {isLoading ? (
             <>
-              <Spinner size="sm" color="white" />
-              <span>Création...</span>
+              <Spinner size="sm" color="text-white" />
+              <span>Enregistrement...</span>
             </>
           ) : (
             <>
@@ -369,7 +578,7 @@ export function ExerciceForm({
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              <span>Créer l'exercice</span>
+              <span>Enregistrer</span>
             </>
           )}
         </button>
