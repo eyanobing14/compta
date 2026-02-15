@@ -7,7 +7,7 @@ export function Bilan() {
   const [isLoading, setIsLoading] = useState(true);
   const [dateInitiale, setDateInitiale] = useState(() => {
     const date = new Date();
-    date.setMonth(date.getMonth() - 1); // Mois dernier
+    date.setMonth(date.getMonth() - 1);
     return date.toISOString().split("T")[0];
   });
   const [dateFinale, setDateFinale] = useState(() => {
@@ -17,11 +17,7 @@ export function Bilan() {
   const loadBilan = async () => {
     setIsLoading(true);
     try {
-      const filters: BilanFilters = {
-        dateInitiale,
-        dateFinale,
-      };
-
+      const filters: BilanFilters = { dateInitiale, dateFinale };
       const result = await getBilanComparatif(filters);
       setData(result);
     } catch (error) {
@@ -37,20 +33,18 @@ export function Bilan() {
 
   const formatMontant = (montant: number) => {
     return (
-      new Intl.NumberFormat("fr-BI", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(montant) + " FBU"
+      new Intl.NumberFormat("fr-BI", { minimumFractionDigits: 0 }).format(
+        montant,
+      ) + " FBU"
     );
   };
 
   const formatVariation = (variation: number, pourcentage: number) => {
     const signe = variation >= 0 ? "+" : "";
-    const couleur = variation >= 0 ? "text-green-600" : "text-red-600";
     return (
-      <span className={couleur}>
+      <span className={variation >= 0 ? "text-green-600" : "text-red-600"}>
         {signe}
-        {formatMontant(variation)}
+        {formatMontant(Math.abs(variation))}
         <span className="text-xs ml-1">
           ({signe}
           {pourcentage.toFixed(1)}%)
@@ -59,58 +53,76 @@ export function Bilan() {
     );
   };
 
-  const getVariationClass = (variation: number) => {
-    if (variation > 0) return "text-green-600";
-    if (variation < 0) return "text-red-600";
-    return "text-muted-foreground";
-  };
-
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <svg
+          className="animate-spin h-8 w-8 text-gray-900"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
+        </svg>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="p-6 text-center text-muted-foreground">
+      <div className="p-8 text-center text-gray-500">
         Aucune donnée disponible
       </div>
     );
   }
 
   return (
-    <div className="p-6">
+    <div className="p-8">
       {/* En-tête */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">Bilan comparatif</h2>
-        <p className="text-sm text-muted-foreground mt-1">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Bilan comparatif</h1>
+        <p className="text-sm text-gray-500 mt-1">
           Analyse de l'évolution de la situation patrimoniale
         </p>
       </div>
 
       {/* Sélecteur de dates */}
-      <div className="mb-6 p-4 border rounded-lg bg-card">
-        <h3 className="font-medium mb-3">Période de comparaison</h3>
+      <div className="mb-6 p-6 bg-gray-50 border border-gray-200">
+        <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wider mb-4">
+          Période de comparaison
+        </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs mb-1">Bilan initial</label>
+            <label className="block text-xs text-gray-500 mb-1">
+              Bilan initial
+            </label>
             <input
               type="date"
               value={dateInitiale}
               onChange={(e) => setDateInitiale(e.target.value)}
-              className="w-full px-3 py-2 text-sm border rounded-md bg-background"
+              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
             />
           </div>
           <div>
-            <label className="block text-xs mb-1">Bilan final</label>
+            <label className="block text-xs text-gray-500 mb-1">
+              Bilan final
+            </label>
             <input
               type="date"
               value={dateFinale}
               onChange={(e) => setDateFinale(e.target.value)}
-              className="w-full px-3 py-2 text-sm border rounded-md bg-background"
+              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
             />
           </div>
         </div>
@@ -118,14 +130,14 @@ export function Bilan() {
 
       {/* Totaux principaux */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="p-4 border rounded-lg bg-card">
-          <p className="text-sm text-muted-foreground">Total Actif</p>
-          <p className="text-2xl font-bold">
+        <div className="bg-white border border-gray-200 p-6">
+          <p className="text-sm text-gray-500 uppercase tracking-wider mb-1">
+            Total Actif
+          </p>
+          <p className="text-2xl font-bold text-gray-900">
             {formatMontant(data.total_actif.final)}
           </p>
-          <p
-            className={`text-sm ${getVariationClass(data.total_actif.variation)}`}
-          >
+          <p className="text-sm mt-2">
             {formatVariation(
               data.total_actif.variation,
               (data.total_actif.variation / (data.total_actif.initial || 1)) *
@@ -133,14 +145,14 @@ export function Bilan() {
             )}
           </p>
         </div>
-        <div className="p-4 border rounded-lg bg-card">
-          <p className="text-sm text-muted-foreground">Total Passif</p>
-          <p className="text-2xl font-bold">
+        <div className="bg-white border border-gray-200 p-6">
+          <p className="text-sm text-gray-500 uppercase tracking-wider mb-1">
+            Total Passif
+          </p>
+          <p className="text-2xl font-bold text-gray-900">
             {formatMontant(data.total_passif.final)}
           </p>
-          <p
-            className={`text-sm ${getVariationClass(data.total_passif.variation)}`}
-          >
+          <p className="text-sm mt-2">
             {formatVariation(
               data.total_passif.variation,
               (data.total_passif.variation / (data.total_passif.initial || 1)) *
@@ -148,67 +160,79 @@ export function Bilan() {
             )}
           </p>
         </div>
-        <div className="p-4 border rounded-lg bg-card">
-          <p className="text-sm text-muted-foreground">Équilibre</p>
+        <div className="bg-white border border-gray-200 p-6">
+          <p className="text-sm text-gray-500 uppercase tracking-wider mb-1">
+            Équilibre
+          </p>
           <p
-            className={`text-2xl font-bold ${
-              Math.abs(data.total_actif.final - data.total_passif.final) < 1
-                ? "text-green-600"
-                : "text-red-600"
-            }`}
+            className={`text-2xl font-bold ${Math.abs(data.total_actif.final - data.total_passif.final) < 1 ? "text-green-600" : "text-red-600"}`}
           >
             {Math.abs(data.total_actif.final - data.total_passif.final) < 1
               ? "✓ Équilibré"
               : "⚠️ Déséquilibré"}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-gray-500 mt-2">
             Actif - Passif ={" "}
             {formatMontant(data.total_actif.final - data.total_passif.final)}
           </p>
         </div>
       </div>
 
-      {/* Tableau comparatif */}
+      {/* Tableaux comparatifs */}
       <div className="space-y-6">
         {/* ACTIF */}
-        <div className="border rounded-lg overflow-hidden">
-          <div className="bg-blue-600 text-white p-3 font-medium flex justify-between">
-            <span>{data.actif.titre}</span>
-            <span className="text-sm">
-              Initial: {formatMontant(data.actif.total_initial)} | Final:{" "}
-              {formatMontant(data.actif.total_final)}
-            </span>
+        <div className="border border-gray-200 overflow-hidden">
+          <div className="bg-blue-600 px-4 py-3">
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-medium text-white uppercase tracking-wider">
+                {data.actif.titre}
+              </h3>
+              <span className="text-xs text-white opacity-90">
+                Initial: {formatMontant(data.actif.total_initial)} | Final:{" "}
+                {formatMontant(data.actif.total_final)}
+              </span>
+            </div>
           </div>
           <table className="w-full">
-            <thead className="bg-accent/50">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left text-sm">Compte</th>
-                <th className="px-4 py-2 text-left text-sm">Libellé</th>
-                <th className="px-4 py-2 text-right text-sm">Initial</th>
-                <th className="px-4 py-2 text-right text-sm">Final</th>
-                <th className="px-4 py-2 text-right text-sm">Variation</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  Compte
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  Libellé
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  Initial
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  Final
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  Variation
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-gray-200">
               {data.actif.lignes.map((ligne) => (
-                <tr key={ligne.compte_numero} className="hover:bg-accent/30">
-                  <td className="px-4 py-2 font-mono text-sm">
+                <tr key={ligne.compte_numero} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 font-mono text-sm text-gray-900">
                     {ligne.compte_numero}
                   </td>
-                  <td className="px-4 py-2 text-sm">{ligne.compte_libelle}</td>
-                  <td className="px-4 py-2 text-right font-mono text-sm">
+                  <td className="px-4 py-2 text-sm text-gray-700">
+                    {ligne.compte_libelle}
+                  </td>
+                  <td className="px-4 py-2 text-right font-mono text-sm text-gray-600">
                     {ligne.montant_initial > 0
                       ? formatMontant(ligne.montant_initial)
                       : "-"}
                   </td>
-                  <td className="px-4 py-2 text-right font-mono text-sm font-medium">
+                  <td className="px-4 py-2 text-right font-mono text-sm font-medium text-gray-900">
                     {ligne.montant_final > 0
                       ? formatMontant(ligne.montant_final)
                       : "-"}
                   </td>
-                  <td
-                    className={`px-4 py-2 text-right font-mono text-sm ${getVariationClass(ligne.variation)}`}
-                  >
+                  <td className="px-4 py-2 text-right font-mono text-sm">
                     {ligne.variation !== 0
                       ? formatVariation(
                           ligne.variation,
@@ -223,44 +247,58 @@ export function Bilan() {
         </div>
 
         {/* PASSIF */}
-        <div className="border rounded-lg overflow-hidden">
-          <div className="bg-purple-600 text-white p-3 font-medium flex justify-between">
-            <span>{data.passif.titre}</span>
-            <span className="text-sm">
-              Initial: {formatMontant(data.passif.total_initial)} | Final:{" "}
-              {formatMontant(data.passif.total_final)}
-            </span>
+        <div className="border border-gray-200 overflow-hidden">
+          <div className="bg-purple-600 px-4 py-3">
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-medium text-white uppercase tracking-wider">
+                {data.passif.titre}
+              </h3>
+              <span className="text-xs text-white opacity-90">
+                Initial: {formatMontant(data.passif.total_initial)} | Final:{" "}
+                {formatMontant(data.passif.total_final)}
+              </span>
+            </div>
           </div>
           <table className="w-full">
-            <thead className="bg-accent/50">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left text-sm">Compte</th>
-                <th className="px-4 py-2 text-left text-sm">Libellé</th>
-                <th className="px-4 py-2 text-right text-sm">Initial</th>
-                <th className="px-4 py-2 text-right text-sm">Final</th>
-                <th className="px-4 py-2 text-right text-sm">Variation</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  Compte
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  Libellé
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  Initial
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  Final
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  Variation
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-gray-200">
               {data.passif.lignes.map((ligne) => (
-                <tr key={ligne.compte_numero} className="hover:bg-accent/30">
-                  <td className="px-4 py-2 font-mono text-sm">
+                <tr key={ligne.compte_numero} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 font-mono text-sm text-gray-900">
                     {ligne.compte_numero}
                   </td>
-                  <td className="px-4 py-2 text-sm">{ligne.compte_libelle}</td>
-                  <td className="px-4 py-2 text-right font-mono text-sm">
+                  <td className="px-4 py-2 text-sm text-gray-700">
+                    {ligne.compte_libelle}
+                  </td>
+                  <td className="px-4 py-2 text-right font-mono text-sm text-gray-600">
                     {ligne.montant_initial > 0
                       ? formatMontant(ligne.montant_initial)
                       : "-"}
                   </td>
-                  <td className="px-4 py-2 text-right font-mono text-sm font-medium">
+                  <td className="px-4 py-2 text-right font-mono text-sm font-medium text-gray-900">
                     {ligne.montant_final > 0
                       ? formatMontant(ligne.montant_final)
                       : "-"}
                   </td>
-                  <td
-                    className={`px-4 py-2 text-right font-mono text-sm ${getVariationClass(ligne.variation)}`}
-                  >
+                  <td className="px-4 py-2 text-right font-mono text-sm">
                     {ligne.variation !== 0
                       ? formatVariation(
                           ligne.variation,
@@ -275,48 +313,62 @@ export function Bilan() {
         </div>
 
         {/* CAPITAUX PROPRES */}
-        <div className="border rounded-lg overflow-hidden">
-          <div className="bg-green-600 text-white p-3 font-medium flex justify-between">
-            <span>{data.capitaux_propres.titre}</span>
-            <span className="text-sm">
-              Initial: {formatMontant(data.capitaux_propres.total_initial)} |
-              Final: {formatMontant(data.capitaux_propres.total_final)}
-            </span>
+        <div className="border border-gray-200 overflow-hidden">
+          <div className="bg-green-600 px-4 py-3">
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-medium text-white uppercase tracking-wider">
+                {data.capitaux_propres.titre}
+              </h3>
+              <span className="text-xs text-white opacity-90">
+                Initial: {formatMontant(data.capitaux_propres.total_initial)} |
+                Final: {formatMontant(data.capitaux_propres.total_final)}
+              </span>
+            </div>
           </div>
           <table className="w-full">
-            <thead className="bg-accent/50">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left text-sm">Compte</th>
-                <th className="px-4 py-2 text-left text-sm">Libellé</th>
-                <th className="px-4 py-2 text-right text-sm">Initial</th>
-                <th className="px-4 py-2 text-right text-sm">Final</th>
-                <th className="px-4 py-2 text-right text-sm">Variation</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  Compte
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  Libellé
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  Initial
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  Final
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  Variation
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-gray-200">
               {data.capitaux_propres.lignes.map((ligne, index) => (
-                <tr key={index} className="hover:bg-accent/30">
-                  <td className="px-4 py-2 font-mono text-sm">
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 font-mono text-sm text-gray-900">
                     {ligne.compte_numero}
                   </td>
-                  <td className="px-4 py-2 text-sm">{ligne.compte_libelle}</td>
+                  <td className="px-4 py-2 text-sm text-gray-700">
+                    {ligne.compte_libelle}
+                  </td>
+                  <td className="px-4 py-2 text-right font-mono text-sm text-gray-600">
+                    {ligne.montant_initial !== 0
+                      ? ligne.montant_initial > 0
+                        ? formatMontant(ligne.montant_initial)
+                        : `(${formatMontant(-ligne.montant_initial)})`
+                      : "-"}
+                  </td>
+                  <td className="px-4 py-2 text-right font-mono text-sm font-medium text-gray-900">
+                    {ligne.montant_final !== 0
+                      ? ligne.montant_final > 0
+                        ? formatMontant(ligne.montant_final)
+                        : `(${formatMontant(-ligne.montant_final)})`
+                      : "-"}
+                  </td>
                   <td className="px-4 py-2 text-right font-mono text-sm">
-                    {ligne.montant_initial > 0
-                      ? formatMontant(ligne.montant_initial)
-                      : ligne.montant_initial < 0
-                        ? `(${formatMontant(-ligne.montant_initial)})`
-                        : "-"}
-                  </td>
-                  <td className="px-4 py-2 text-right font-mono text-sm font-medium">
-                    {ligne.montant_final > 0
-                      ? formatMontant(ligne.montant_final)
-                      : ligne.montant_final < 0
-                        ? `(${formatMontant(-ligne.montant_final)})`
-                        : "-"}
-                  </td>
-                  <td
-                    className={`px-4 py-2 text-right font-mono text-sm ${getVariationClass(ligne.variation)}`}
-                  >
                     {ligne.variation !== 0
                       ? formatVariation(
                           ligne.variation,
@@ -332,46 +384,48 @@ export function Bilan() {
       </div>
 
       {/* Graphique d'évolution */}
-      <div className="mt-6 p-4 border rounded-lg">
-        <h3 className="font-medium mb-3">Évolution du bilan</h3>
-        <div className="space-y-3">
+      <div className="mt-6 p-6 bg-white border border-gray-200">
+        <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wider mb-4">
+          Évolution du bilan
+        </h3>
+        <div className="space-y-4">
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span>Actif</span>
-              <span className="font-mono">
+              <span className="text-gray-600">Actif</span>
+              <span className="font-mono text-gray-900">
                 {formatMontant(data.total_actif.final)}
               </span>
             </div>
-            <div className="w-full bg-accent rounded-full h-4 relative">
+            <div className="w-full h-2 bg-gray-200">
               <div
-                className="bg-blue-500 h-4 rounded-full absolute top-0 left-0"
+                className="h-2 bg-blue-600"
                 style={{
                   width: `${(data.total_actif.final / Math.max(data.total_actif.final, data.total_passif.final)) * 100}%`,
                 }}
-              ></div>
+              />
             </div>
           </div>
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span>Passif + Capitaux</span>
-              <span className="font-mono">
+              <span className="text-gray-600">Passif + Capitaux</span>
+              <span className="font-mono text-gray-900">
                 {formatMontant(data.total_passif.final)}
               </span>
             </div>
-            <div className="w-full bg-accent rounded-full h-4 relative">
+            <div className="w-full h-2 bg-gray-200">
               <div
-                className="bg-purple-500 h-4 rounded-full absolute top-0 left-0"
+                className="h-2 bg-purple-600"
                 style={{
                   width: `${(data.total_passif.final / Math.max(data.total_actif.final, data.total_passif.final)) * 100}%`,
                 }}
-              ></div>
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Notes explicatives */}
-      <div className="mt-4 text-xs text-muted-foreground space-y-1">
+      {/* Notes */}
+      <div className="mt-4 text-xs text-gray-500 space-y-1">
         <p>
           📅 Bilan initial au{" "}
           {new Date(data.dates.initial).toLocaleDateString("fr-BI")}
@@ -381,7 +435,10 @@ export function Bilan() {
           {new Date(data.dates.final).toLocaleDateString("fr-BI")}
         </p>
         <p>✅ Un bilan est équilibré quand Actif = Passif + Capitaux propres</p>
-        <p>📈 Les variations positives en vert, négatives en rouge</p>
+        <p className="flex items-center gap-3">
+          <span className="text-green-600">↑ Variation positive</span>
+          <span className="text-red-600">↓ Variation négative</span>
+        </p>
       </div>
     </div>
   );

@@ -17,13 +17,10 @@ export async function getExercices(): Promise<Exercice[]> {
 export async function createExercice(data: ExerciceFormData): Promise<number> {
   const db = await getDb();
 
-  // Désactiver tous les exercices existants
-  await db.execute("UPDATE exercices SET est_actif = FALSE");
-
-  // Créer le nouvel exercice
+  // Créer le nouvel exercice (non actif par défaut)
   await db.execute(
     `INSERT INTO exercices (nom_entreprise, nom_exercice, date_debut, date_fin, est_clos, est_actif) 
-     VALUES (?, ?, ?, ?, FALSE, TRUE)`,
+     VALUES (?, ?, ?, ?, FALSE, FALSE)`,
     [data.nom_entreprise, data.nom_exercice, data.date_debut, data.date_fin],
   );
 
@@ -35,24 +32,18 @@ export async function createExercice(data: ExerciceFormData): Promise<number> {
 }
 
 /**
- * Active un exercice
+ * Clôture un exercice
  */
-export async function setExerciceActif(id: number): Promise<void> {
+export async function cloturerExercice(id: number): Promise<void> {
   const db = await getDb();
 
-  // Désactiver tous les exercices
-  await db.execute("UPDATE exercices SET est_actif = FALSE");
-
-  // Activer celui-ci
-  await db.execute("UPDATE exercices SET est_actif = TRUE WHERE id = ?", [id]);
-}
-
-/**
- * Supprime un exercice
- */
-export async function deleteExercice(id: number): Promise<void> {
-  const db = await getDb();
-  await db.execute("DELETE FROM exercices WHERE id = ?", [id]);
+  // Marquer l'exercice comme clos
+  await db.execute(
+    `UPDATE exercices 
+     SET est_clos = TRUE, closed_at = CURRENT_TIMESTAMP 
+     WHERE id = ?`,
+    [id],
+  );
 }
 
 /**

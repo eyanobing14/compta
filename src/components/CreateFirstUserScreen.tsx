@@ -49,22 +49,22 @@ export function CreateFirstUserScreen({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="max-w-md w-full p-8">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary mb-2">
-            MiniCompta BI
+          <h1 className="text-5xl font-light tracking-tighter mb-2">
+            MINICOMPTA
           </h1>
-          <p className="text-muted-foreground">
-            Bienvenue ! Créez votre compte administrateur
+          <p className="text-gray-500 text-sm uppercase tracking-wider">
+            Créez votre compte administrateur
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label
               htmlFor="username"
-              className="block text-sm font-medium mb-1"
+              className="block text-xs uppercase tracking-wider text-gray-600 mb-2"
             >
               Nom d'utilisateur
             </label>
@@ -73,7 +73,7 @@ export function CreateFirstUserScreen({
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-3 border border-gray-300 bg-white focus:border-black focus:ring-0 transition-colors"
               required
               disabled={isLoading}
               autoFocus
@@ -83,7 +83,7 @@ export function CreateFirstUserScreen({
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium mb-1"
+              className="block text-xs uppercase tracking-wider text-gray-600 mb-2"
             >
               Mot de passe
             </label>
@@ -92,19 +92,17 @@ export function CreateFirstUserScreen({
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-3 border border-gray-300 bg-white focus:border-black focus:ring-0 transition-colors"
               required
               disabled={isLoading}
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Minimum 6 caractères
-            </p>
+            <p className="text-xs text-gray-400 mt-2">Minimum 6 caractères</p>
           </div>
 
           <div>
             <label
               htmlFor="confirmPassword"
-              className="block text-sm font-medium mb-1"
+              className="block text-xs uppercase tracking-wider text-gray-600 mb-2"
             >
               Confirmer le mot de passe
             </label>
@@ -113,28 +111,28 @@ export function CreateFirstUserScreen({
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-3 border border-gray-300 bg-white focus:border-black focus:ring-0 transition-colors"
               required
               disabled={isLoading}
             />
           </div>
 
           {error && (
-            <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
-              ❌ {error}
+            <div className="p-3 bg-gray-100 border border-gray-300 text-gray-700 text-sm">
+              ⚠️ {error}
             </div>
           )}
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2 px-4 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+            className="w-full py-3 px-4 bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors uppercase text-sm tracking-wider"
           >
             {isLoading ? "Création..." : "Créer mon compte"}
           </button>
         </form>
 
-        <div className="mt-8 text-center text-xs text-muted-foreground">
+        <div className="mt-8 text-center text-xs text-gray-400 uppercase tracking-wider">
           Ce compte aura les droits d'administration
         </div>
       </div>

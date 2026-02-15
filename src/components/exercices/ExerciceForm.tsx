@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ExerciceFormData } from "../../types/exercice";
 import { createExercice, checkExerciceOverlap } from "../../lib/exercice.db";
-import { Spinner } from "./Spinner"; // ← IMPORT MANQUANT AJOUTÉ
+import { Spinner } from "./Spinner";
 
 interface ExerciceFormProps {
   onSuccess: () => void;
@@ -23,28 +23,22 @@ export function ExerciceForm({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [overlapWarning, setOverlapWarning] = useState<string | null>(null);
+  const [overlapError, setOverlapError] = useState<string | null>(null);
 
-  // Vérification des chevauchements en temps réel
+  // Vérification des chevauchements
   useEffect(() => {
     const checkOverlap = async () => {
       if (formData.date_debut && formData.date_fin) {
         try {
-          const result = await checkExerciceOverlap(
+          const hasOverlap = await checkExerciceOverlap(
             formData.date_debut,
             formData.date_fin,
           );
-          if (result.overlap && result.exercices_conflits) {
-            const conflits = result.exercices_conflits
-              .map((e) => e.nom_exercice)
-              .join(", ");
-            setOverlapWarning(
-              `Attention: Cette période chevauche l'exercice ${conflits}`,
-            );
+          if (hasOverlap) {
+            setOverlapError("Cette période chevauche un exercice existant");
           } else {
-            setOverlapWarning(null);
+            setOverlapError(null);
           }
         } catch (error) {
           console.error("Erreur vérification chevauchement:", error);
@@ -58,7 +52,6 @@ export function ExerciceForm({
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
-    const newWarnings: Record<string, string> = {};
 
     if (!formData.nom_entreprise.trim()) {
       newErrors.nom_entreprise = "Le nom de l'entreprise est requis";
@@ -79,26 +72,14 @@ export function ExerciceForm({
     if (formData.date_debut && formData.date_fin) {
       if (formData.date_debut >= formData.date_fin) {
         newErrors.date_fin = "La date de fin doit être après la date de début";
-      } else {
-        const debut = new Date(formData.date_debut);
-        const fin = new Date(formData.date_fin);
-        const diffMois =
-          (fin.getFullYear() - debut.getFullYear()) * 12 +
-          (fin.getMonth() - debut.getMonth());
-
-        if (diffMois < 1) {
-          newErrors.date_fin = "L'exercice doit faire au moins 1 mois";
-        }
-
-        if (diffMois > 24) {
-          newWarnings.date_fin =
-            "L'exercice dépasse 2 ans - assurez-vous que c'est intentionnel";
-        }
       }
     }
 
+    if (overlapError) {
+      newErrors.general = overlapError;
+    }
+
     setErrors(newErrors);
-    setWarnings(newWarnings);
     return Object.keys(newErrors).length === 0;
   };
 
@@ -107,33 +88,12 @@ export function ExerciceForm({
 
     if (!validate()) return;
 
-    // Vérification finale des chevauchements
-    try {
-      const overlap = await checkExerciceOverlap(
-        formData.date_debut,
-        formData.date_fin,
-      );
-      if (overlap.overlap) {
-        if (
-          !confirm(
-            "Cette période chevauche un exercice existant. Voulez-vous continuer ?",
-          )
-        ) {
-          return;
-        }
-      }
-    } catch (error) {
-      console.error("Erreur vérification chevauchement:", error);
-    }
-
     setIsLoading(true);
     try {
       await createExercice(formData);
       onSuccess();
     } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "Erreur lors de la création",
-      );
+      alert("Erreur lors de la création");
     } finally {
       setIsLoading(false);
     }
@@ -153,7 +113,6 @@ export function ExerciceForm({
           <input
             type="text"
             id="nom_entreprise"
-            name="nom_entreprise"
             value={formData.nom_entreprise}
             onChange={(e) => {
               setFormData((prev) => ({
@@ -196,7 +155,6 @@ export function ExerciceForm({
           <input
             type="text"
             id="nom_exercice"
-            name="nom_exercice"
             value={formData.nom_exercice}
             onChange={(e) => {
               setFormData((prev) => ({
@@ -240,7 +198,6 @@ export function ExerciceForm({
             <input
               type="date"
               id="date_debut"
-              name="date_debut"
               value={formData.date_debut}
               onChange={(e) => {
                 setFormData((prev) => ({
@@ -281,7 +238,6 @@ export function ExerciceForm({
             <input
               type="date"
               id="date_fin"
-              name="date_fin"
               value={formData.date_fin}
               onChange={(e) => {
                 setFormData((prev) => ({ ...prev, date_fin: e.target.value }));
@@ -306,31 +262,13 @@ export function ExerciceForm({
           {errors.date_fin && (
             <p className="mt-1 text-xs text-red-500">{errors.date_fin}</p>
           )}
-          {warnings.date_fin && (
-            <p className="mt-1 text-xs text-amber-600">
-              ⚠️ {warnings.date_fin}
-            </p>
-          )}
         </div>
       </div>
 
       {/* Avertissement chevauchement */}
-      {overlapWarning && (
-        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-700 text-sm flex items-center gap-2">
-          <svg
-            className="w-5 h-5 flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-          <span>{overlapWarning}</span>
+      {overlapError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm">
+          ⚠️ {overlapError}
         </div>
       )}
 

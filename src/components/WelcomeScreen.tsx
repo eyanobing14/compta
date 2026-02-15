@@ -71,15 +71,15 @@ export function WelcomeScreen({ onFileOpened }: WelcomeScreenProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="max-w-md w-full p-8">
         {/* Logo ou titre */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary mb-2">
-            MiniCompta BI
+        <div className="text-center mb-12">
+          <h1 className="text-6xl font-light tracking-tighter mb-2">
+            MINICOMPTA
           </h1>
-          <p className="text-muted-foreground">
-            Comptabilité simple pour indépendants et petites entreprises
+          <p className="text-gray-500 text-sm uppercase tracking-wider">
+            Comptabilité simple pour indépendants
           </p>
         </div>
 
@@ -88,10 +88,12 @@ export function WelcomeScreen({ onFileOpened }: WelcomeScreenProps) {
           <button
             onClick={handleNewFile}
             disabled={isLoading}
-            className="w-full p-6 text-left border rounded-lg hover:border-primary hover:bg-accent/50 transition-colors disabled:opacity-50"
+            className="w-full p-8 text-left border border-gray-300 bg-white hover:border-black transition-colors disabled:opacity-50 disabled:hover:border-gray-300 group"
           >
-            <h2 className="text-xl font-semibold mb-2">📁 Nouveau fichier</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="text-2xl  mb-2 group-hover:translate-x-1 transition-transform">
+              📁 Nouveau fichier
+            </h2>
+            <p className="text-sm text-gray-500">
               Créer un nouveau fichier de comptabilité vierge
             </p>
           </button>
@@ -99,10 +101,12 @@ export function WelcomeScreen({ onFileOpened }: WelcomeScreenProps) {
           <button
             onClick={handleOpenFile}
             disabled={isLoading}
-            className="w-full p-6 text-left border rounded-lg hover:border-primary hover:bg-accent/50 transition-colors disabled:opacity-50"
+            className="w-full p-8 text-left border border-gray-300 bg-white hover:border-black transition-colors disabled:opacity-50 disabled:hover:border-gray-300 group"
           >
-            <h2 className="text-xl font-semibold mb-2">📂 Ouvrir un fichier</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="text-2xl  mb-2 group-hover:translate-x-1 transition-transform">
+              📂 Ouvrir un fichier
+            </h2>
+            <p className="text-sm text-gray-500">
               Ouvrir un fichier MiniCompta existant (.compta)
             </p>
           </button>
@@ -110,21 +114,22 @@ export function WelcomeScreen({ onFileOpened }: WelcomeScreenProps) {
 
         {/* Message d'erreur */}
         {error && (
-          <div className="mt-4 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
-            ❌ {error}
+          <div className="mt-6 p-3 bg-gray-100 border border-gray-300 text-gray-700 text-sm">
+            ⚠️ {error}
           </div>
         )}
 
         {/* Loading */}
         {isLoading && (
-          <div className="mt-4 text-center text-muted-foreground">
-            Chargement...
+          <div className="mt-6 text-center">
+            <div className="w-8 h-8 border-2 border-gray-300 border-t-black rounded-full animate-spin mx-auto mb-2"></div>
+            <p className="text-sm text-gray-500">Chargement...</p>
           </div>
         )}
 
         {/* Pied de page */}
-        <div className="mt-8 text-center text-xs text-muted-foreground">
-          Version 1.0.0 - Pour le Burundi 🇧🇮
+        <div className="mt-12 text-center text-xs text-gray-400 uppercase tracking-wider">
+          Version 1.0.0 — Burundi 🇧🇮
         </div>
       </div>
     </div>
