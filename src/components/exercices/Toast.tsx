@@ -20,13 +20,13 @@ export function Toast({ message, type, onClose, duration = 5000 }: ToastProps) {
   const getStyles = () => {
     switch (type) {
       case "success":
-        return "bg-green-50 border-l-4 border-green-500";
+        return "bg-green-50 border border-green-200 rounded-lg shadow-lg";
       case "error":
-        return "bg-red-50 border-l-4 border-red-500";
+        return "bg-red-50 border border-red-200 rounded-lg shadow-lg";
       case "warning":
-        return "bg-yellow-50 border-l-4 border-yellow-500";
+        return "bg-amber-50 border border-amber-200 rounded-lg shadow-lg";
       case "info":
-        return "bg-blue-50 border-l-4 border-blue-500";
+        return "bg-blue-50 border border-blue-200 rounded-lg shadow-lg";
     }
   };
 
@@ -114,16 +114,27 @@ export function Toast({ message, type, onClose, duration = 5000 }: ToastProps) {
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-50 p-4 max-w-md shadow-lg ${getStyles()}`}
+      className={`fixed bottom-6 right-6 z-50 p-5 max-w-sm shadow-2xl ${getStyles()}`}
     >
-      <div className="flex items-start gap-3">
-        {getIcon()}
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0 pt-0.5">{getIcon()}</div>
         <div className="flex-1">
-          <p className={`text-sm ${getTextColor()}`}>{message}</p>
+          <p className={`text-sm font-medium ${getTextColor()}`}>{message}</p>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+        <button
+          onClick={onClose}
+          className={`flex-shrink-0 ml-4 transition-colors cursor-pointer ${
+            type === "success"
+              ? "text-green-400 hover:text-green-600"
+              : type === "error"
+                ? "text-red-400 hover:text-red-600"
+                : type === "warning"
+                  ? "text-amber-400 hover:text-amber-600"
+                  : "text-blue-400 hover:text-blue-600"
+          }`}
+        >
           <svg
-            className="w-4 h-4"
+            className="w-5 h-5"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

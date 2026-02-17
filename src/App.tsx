@@ -14,13 +14,18 @@ function App() {
     setCurrentState("dashboard");
   };
 
+  const handleCloseFile = () => {
+    setCurrentFile(null);
+    setCurrentState("welcome");
+  };
+
   // Si pas de fichier ouvert
   if (currentState === "welcome" || !currentFile) {
     return <WelcomeScreen onFileOpened={handleFileOpened} />;
   }
 
   // Dashboard avec gestion des exercices
-  return <Dashboard currentFile={currentFile} />;
+  return <Dashboard currentFile={currentFile} onCloseFile={handleCloseFile} />;
 }
 
 export default App;

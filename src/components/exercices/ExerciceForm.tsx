@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { ExerciceFormData } from "../../types/exercice";
-import { createExercice, checkExerciceOverlap } from "../../lib/exercice.db";
+import { ExerciceFormData, Exercice } from "../../types/exercice";
+import {
+  createExercice,
+  checkExerciceOverlap,
+  getExercices,
+} from "../../lib/exercice.db";
 import { Spinner } from "./Spinner";
 
 interface ExerciceFormProps {
@@ -25,6 +29,42 @@ export function ExerciceForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [overlapError, setOverlapError] = useState<string | null>(null);
+  const [lastExercice, setLastExercice] = useState<Exercice | null>(null);
+  const [minDateDebut, setMinDateDebut] = useState<string>("");
+
+  // Charger le dernier exercice au mount
+  useEffect(() => {
+    const loadLastExercice = async () => {
+      try {
+        const exercices = await getExercices();
+        if (exercices.length > 0) {
+          const last = exercices[0]; // Triés par date_debut DESC
+          setLastExercice(last);
+
+          // Calculer la date minimale (jour après la fin du dernier)
+          const lastEndDate = new Date(last.date_fin);
+          lastEndDate.setDate(lastEndDate.getDate() + 1);
+          const minDate = lastEndDate.toISOString().split("T")[0];
+          setMinDateDebut(minDate);
+
+          // Initialiser la date de début si pas de données initiales
+          if (!initialData?.date_debut) {
+            setFormData((prev) => ({
+              ...prev,
+              date_debut: minDate,
+              date_fin: new Date(lastEndDate.getFullYear(), 11, 31)
+                .toISOString()
+                .split("T")[0],
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Erreur chargement dernier exercice:", error);
+      }
+    };
+
+    loadLastExercice();
+  }, [initialData?.date_debut]);
 
   // Vérification des chevauchements
   useEffect(() => {
@@ -100,12 +140,33 @@ export function ExerciceForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto">
+      {/* Message informatif */}
+      {lastExercice && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+          <div className="font-medium mb-1">📋 Dernier exercice</div>
+          <div>
+            {lastExercice.nom_exercice} : du {lastExercice.date_debut} au{" "}
+            {lastExercice.date_fin}
+          </div>
+          <div className="mt-2 text-blue-600">
+            La date de début a été définie au lendemain de la fin du dernier
+            exercice.
+          </div>
+        </div>
+      )}
+
+      {/* Erreur générale */}
+      {errors.general && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          ⚠️ {errors.general}
+        </div>
+      )}
       {/* Nom entreprise */}
       <div>
         <label
           htmlFor="nom_entreprise"
-          className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
+          className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3"
         >
           Nom de l'entreprise <span className="text-red-500">*</span>
         </label>
@@ -121,7 +182,7 @@ export function ExerciceForm({
               }));
               setErrors((prev) => ({ ...prev, nom_entreprise: "" }));
             }}
-            className={`w-full h-10 pl-10 pr-4 text-sm border ${errors.nom_entreprise ? "border-red-500" : "border-gray-300"} bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors`}
+            className={`w-full h-11 pl-10 pr-4 text-sm border rounded-lg bg-white focus:border-gray-900 focus:ring-2 focus:ring-gray-900 focus:ring-opacity-20 transition-all ${errors.nom_entreprise ? "border-red-500" : "border-gray-300"}`}
             placeholder="Nom de votre entreprise"
           />
           <svg
@@ -139,7 +200,9 @@ export function ExerciceForm({
           </svg>
         </div>
         {errors.nom_entreprise && (
-          <p className="mt-1 text-xs text-red-500">{errors.nom_entreprise}</p>
+          <p className="mt-1 text-xs text-red-500 font-medium">
+            {errors.nom_entreprise}
+          </p>
         )}
       </div>
 
@@ -147,7 +210,7 @@ export function ExerciceForm({
       <div>
         <label
           htmlFor="nom_exercice"
-          className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
+          className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3"
         >
           Nom de l'exercice <span className="text-red-500">*</span>
         </label>
@@ -163,7 +226,7 @@ export function ExerciceForm({
               }));
               setErrors((prev) => ({ ...prev, nom_exercice: "" }));
             }}
-            className={`w-full h-10 pl-10 pr-4 text-sm border ${errors.nom_exercice ? "border-red-500" : "border-gray-300"} bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors`}
+            className={`w-full h-11 pl-10 pr-4 text-sm border rounded-lg bg-white focus:border-gray-900 focus:ring-2 focus:ring-gray-900 focus:ring-opacity-20 transition-all ${errors.nom_exercice ? "border-red-500" : "border-gray-300"}`}
             placeholder="Ex: Exercice 2025"
           />
           <svg
@@ -181,7 +244,9 @@ export function ExerciceForm({
           </svg>
         </div>
         {errors.nom_exercice && (
-          <p className="mt-1 text-xs text-red-500">{errors.nom_exercice}</p>
+          <p className="mt-1 text-xs text-red-500 font-medium">
+            {errors.nom_exercice}
+          </p>
         )}
       </div>
 
@@ -190,7 +255,7 @@ export function ExerciceForm({
         <div>
           <label
             htmlFor="date_debut"
-            className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
+            className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3"
           >
             Date de début <span className="text-red-500">*</span>
           </label>
@@ -199,6 +264,7 @@ export function ExerciceForm({
               type="date"
               id="date_debut"
               value={formData.date_debut}
+              min={minDateDebut}
               onChange={(e) => {
                 setFormData((prev) => ({
                   ...prev,
@@ -206,10 +272,10 @@ export function ExerciceForm({
                 }));
                 setErrors((prev) => ({ ...prev, date_debut: "" }));
               }}
-              className={`w-full h-10 pl-10 pr-4 text-sm border ${errors.date_debut ? "border-red-500" : "border-gray-300"} bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors`}
+              className={`w-full h-11 pl-10 pr-4 text-sm border rounded-lg bg-white focus:border-gray-900 focus:ring-2 focus:ring-gray-900 focus:ring-opacity-20 transition-all cursor-pointer ${errors.date_debut ? "border-red-500" : "border-gray-300"}`}
             />
             <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -223,14 +289,16 @@ export function ExerciceForm({
             </svg>
           </div>
           {errors.date_debut && (
-            <p className="mt-1 text-xs text-red-500">{errors.date_debut}</p>
+            <p className="mt-1 text-xs text-red-500 font-medium">
+              {errors.date_debut}
+            </p>
           )}
         </div>
 
         <div>
           <label
             htmlFor="date_fin"
-            className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-2"
+            className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3"
           >
             Date de fin <span className="text-red-500">*</span>
           </label>
@@ -239,14 +307,15 @@ export function ExerciceForm({
               type="date"
               id="date_fin"
               value={formData.date_fin}
+              min={formData.date_debut}
               onChange={(e) => {
                 setFormData((prev) => ({ ...prev, date_fin: e.target.value }));
                 setErrors((prev) => ({ ...prev, date_fin: "" }));
               }}
-              className={`w-full h-10 pl-10 pr-4 text-sm border ${errors.date_fin ? "border-red-500" : "border-gray-300"} bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors`}
+              className={`w-full h-11 pl-10 pr-4 text-sm border rounded-lg bg-white focus:border-gray-900 focus:ring-2 focus:ring-gray-900 focus:ring-opacity-20 transition-all cursor-pointer ${errors.date_fin ? "border-red-500" : "border-gray-300"}`}
             />
             <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -260,32 +329,34 @@ export function ExerciceForm({
             </svg>
           </div>
           {errors.date_fin && (
-            <p className="mt-1 text-xs text-red-500">{errors.date_fin}</p>
+            <p className="mt-1 text-xs text-red-500 font-medium">
+              {errors.date_fin}
+            </p>
           )}
         </div>
       </div>
 
       {/* Avertissement chevauchement */}
       {overlapError && (
-        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium">
           ⚠️ {overlapError}
         </div>
       )}
 
       {/* Boutons */}
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
         <button
           type="button"
           onClick={onCancel}
           disabled={isLoading}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 cursor-pointer"
+          className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 cursor-pointer"
         >
           Annuler
         </button>
         <button
           type="submit"
           disabled={isLoading}
-          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+          className="px-6 py-3 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
         >
           {isLoading ? (
             <>

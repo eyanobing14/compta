@@ -199,28 +199,52 @@ export async function getBilanComparatif(
       }
     }
 
-    // Capitaux propres (incluant le résultat)
-    const capitauxLignes: BilanLine[] = [
-      {
+    // Capitaux propres (résultat de l'exercice uniquement)
+    // Le Capital (compte 10) est traité comme un compte normal de passif
+    const capitauxLignes: BilanLine[] = [];
+
+    // Ajouter Capital s'il existe
+    const capitalSoldeInitial = await getSoldeCompteAu(
+      "10",
+      filters.dateInitiale,
+    );
+    const capitalSoldeFinal = await getSoldeCompteAu("10", filters.dateFinale);
+    const capitalMontantInitial = Math.abs(capitalSoldeInitial);
+    const capitalMontantFinal = Math.abs(capitalSoldeFinal);
+
+    if (capitalMontantInitial > 0 || capitalMontantFinal > 0) {
+      const capitalVariation = capitalMontantFinal - capitalMontantInitial;
+      capitauxLignes.push({
         compte_numero: "10",
         compte_libelle: "Capital",
-        montant_initial: 1000000, // À configurer plus tard
-        montant_final: 1000000,
-        variation: 0,
-        variation_pourcentage: 0,
-      },
-      {
+        montant_initial: capitalMontantInitial,
+        montant_final: capitalMontantFinal,
+        variation: capitalVariation,
+        variation_pourcentage:
+          capitalMontantInitial !== 0
+            ? (capitalVariation / capitalMontantInitial) * 100
+            : 0,
+      });
+    }
+
+    // Ajouter le résultat de l'exercice
+    const resultatMontantInitial = Math.abs(resultatInitial);
+    const resultatMontantFinal = Math.abs(resultatFinal);
+
+    if (resultatMontantInitial > 0 || resultatMontantFinal > 0) {
+      const resultatVariation = resultatMontantFinal - resultatMontantInitial;
+      capitauxLignes.push({
         compte_numero: "12",
         compte_libelle: "Résultat de l'exercice",
-        montant_initial: resultatInitial,
-        montant_final: resultatFinal,
-        variation: resultatFinal - resultatInitial,
+        montant_initial: resultatMontantInitial,
+        montant_final: resultatMontantFinal,
+        variation: resultatVariation,
         variation_pourcentage:
-          resultatInitial !== 0
-            ? ((resultatFinal - resultatInitial) / resultatInitial) * 100
+          resultatMontantInitial !== 0
+            ? (resultatVariation / resultatMontantInitial) * 100
             : 0,
-      },
-    ];
+      });
+    }
 
     const totalCapitauxInitial = capitauxLignes.reduce(
       (sum, l) => sum + l.montant_initial,
