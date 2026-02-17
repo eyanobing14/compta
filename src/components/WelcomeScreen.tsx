@@ -73,14 +73,17 @@ export function WelcomeScreen({ onFileOpened }: WelcomeScreenProps) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="max-w-md w-full p-8">
-        {/* Logo ou titre */}
-        <div className="text-center mb-12">
-          <h1 className="text-6xl font-light tracking-tighter mb-2">
-            MINICOMPTA
-          </h1>
-          <p className="text-gray-500 text-sm uppercase tracking-wider">
-            Comptabilité simple pour indépendants
-          </p>
+        {/* Logo et titre */}
+        <div className="mb-12 flex flex-row items-center justify-center gap-6">
+          <img src="/logo.svg" alt="MiniCompta" className="w-24 h-24" />
+          <div className="flex flex-col">
+            <h1 className="text-4xl font-semibold tracking-tighter">
+              MiniCompta
+            </h1>
+            <p className="text-gray-500 text-xs uppercase tracking-wider mt-2">
+              Comptabilité simple pour indépendants
+            </p>
+          </div>
         </div>
 
         {/* Cartes de choix */}
@@ -88,9 +91,9 @@ export function WelcomeScreen({ onFileOpened }: WelcomeScreenProps) {
           <button
             onClick={handleNewFile}
             disabled={isLoading}
-            className="w-full p-8 text-left border border-gray-300 bg-white hover:border-black transition-colors disabled:opacity-50 disabled:hover:border-gray-300 group"
+            className="w-full p-6 text-left border border-gray-300 bg-white hover:bg-gray-50 hover:border-black hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-white disabled:hover:shadow-none group cursor-pointer rounded-lg"
           >
-            <h2 className="text-2xl  mb-2 group-hover:translate-x-1 transition-transform">
+            <h2 className="text-xl font-medium mb-2 group-hover:translate-x-1 transition-transform duration-200">
               📁 Nouveau fichier
             </h2>
             <p className="text-sm text-gray-500">
@@ -101,9 +104,9 @@ export function WelcomeScreen({ onFileOpened }: WelcomeScreenProps) {
           <button
             onClick={handleOpenFile}
             disabled={isLoading}
-            className="w-full p-8 text-left border border-gray-300 bg-white hover:border-black transition-colors disabled:opacity-50 disabled:hover:border-gray-300 group"
+            className="w-full p-6 text-left border border-gray-300 bg-white hover:bg-gray-50 hover:border-black hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-white disabled:hover:shadow-none group cursor-pointer rounded-lg"
           >
-            <h2 className="text-2xl  mb-2 group-hover:translate-x-1 transition-transform">
+            <h2 className="text-xl font-medium mb-2 group-hover:translate-x-1 transition-transform duration-200">
               📂 Ouvrir un fichier
             </h2>
             <p className="text-sm text-gray-500">
@@ -114,7 +117,7 @@ export function WelcomeScreen({ onFileOpened }: WelcomeScreenProps) {
 
         {/* Message d'erreur */}
         {error && (
-          <div className="mt-6 p-3 bg-gray-100 border border-gray-300 text-gray-700 text-sm">
+          <div className="mt-6 p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
             ⚠️ {error}
           </div>
         )}
@@ -128,8 +131,11 @@ export function WelcomeScreen({ onFileOpened }: WelcomeScreenProps) {
         )}
 
         {/* Pied de page */}
-        <div className="mt-12 text-center text-xs text-gray-400 uppercase tracking-wider">
-          Version 1.0.0 — Burundi 🇧🇮
+        <div className="mt-12 text-center">
+          <p className="text-xs text-gray-400 uppercase tracking-wider">
+            Version 1.0.0
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Burundi 🇧🇮</p>
         </div>
       </div>
     </div>

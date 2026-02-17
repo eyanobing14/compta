@@ -44,9 +44,12 @@ export function Dashboard({ currentFile }: DashboardProps) {
       {/* Sidebar */}
       <aside className="w-64 border-r border-gray-200 flex flex-col h-full bg-white">
         <div className="p-6">
-          <h1 className="text-2xl font-light tracking-tighter mb-8">
-            MINICOMPTA
-          </h1>
+          <div className="flex items-center gap-3 mb-8">
+            <img src="/logo.svg" alt="MiniCompta" className="w-10 h-10" />
+            <h1 className="text-2xl font-semibold tracking-tighter">
+              MiniCompta
+            </h1>
+          </div>
 
           {/* Infos fichier */}
           <div className="mb-4 p-3 border border-gray-400 text-xs">

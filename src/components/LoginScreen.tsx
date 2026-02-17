@@ -37,7 +37,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
       <div className="max-w-md w-full p-8">
         <div className="text-center mb-8">
           <h1 className="text-5xl font-light tracking-tighter mb-2">
-            MINICOMPTA
+            MiniCompta
           </h1>
           <p className="text-gray-500 text-sm uppercase tracking-wider">
             Connectez-vous à votre comptabilité
