@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Compte,
   CompteFormData,
@@ -9,6 +9,7 @@ import {
   createCompte,
   updateCompte,
   getCompteByNumero,
+  getComptes,
 } from "../../lib/comptes.db";
 
 interface CompteFormProps {
@@ -25,10 +26,25 @@ export function CompteForm({ compte, onSuccess, onCancel }: CompteFormProps) {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [existingComptes, setExistingComptes] = useState<Compte[]>([]);
+
+  // Charger tous les comptes pour vérifier les doublons de libellé
+  useEffect(() => {
+    const loadComptes = async () => {
+      try {
+        const comptes = await getComptes(null, true);
+        setExistingComptes(comptes);
+      } catch (error) {
+        console.error("Erreur chargement comptes:", error);
+      }
+    };
+    loadComptes();
+  }, []);
 
   const validate = async (): Promise<boolean> => {
     const newErrors: Record<string, string> = {};
 
+    // Validation du numéro
     if (!formData.numero.trim()) {
       newErrors.numero = "Le numéro de compte est requis";
     } else if (!/^\d+$/.test(formData.numero)) {
@@ -37,6 +53,7 @@ export function CompteForm({ compte, onSuccess, onCancel }: CompteFormProps) {
       newErrors.numero = "Le numéro ne doit pas dépasser 10 caractères";
     }
 
+    // Validation du libellé
     if (!formData.libelle.trim()) {
       newErrors.libelle = "Le libellé est requis";
     } else if (formData.libelle.length > 100) {
@@ -52,6 +69,19 @@ export function CompteForm({ compte, onSuccess, onCancel }: CompteFormProps) {
         }
       } catch (error) {
         console.error("Erreur vérification unicité:", error);
+      }
+    }
+
+    // Vérifier l'unicité du libellé (pour éviter les doublons)
+    if (!newErrors.libelle) {
+      const libelleExists = existingComptes.some(
+        (c) =>
+          c.libelle.toLowerCase() === formData.libelle.toLowerCase() &&
+          (!compte || c.numero !== compte.numero), // Exclure le compte en cours d'édition
+      );
+
+      if (libelleExists) {
+        newErrors.libelle = "Ce libellé existe déjà pour un autre compte";
       }
     }
 
@@ -97,30 +127,72 @@ export function CompteForm({ compte, onSuccess, onCancel }: CompteFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Numéro de compte */}
       <div>
-        <label htmlFor="numero" className="block text-sm font-medium mb-1">
-          Numéro de compte <span className="text-destructive">*</span>
+        <label
+          htmlFor="numero"
+          className="block text-sm font-medium mb-1 text-gray-700"
+        >
+          Numéro de compte <span className="text-red-500">*</span>
         </label>
-        <input
-          type="text"
-          id="numero"
-          name="numero"
-          value={formData.numero}
-          onChange={handleChange}
-          disabled={!!compte} // Désactivé en mode édition
-          className={`w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary ${
-            errors.numero ? "border-destructive" : ""
-          } ${!!compte ? "bg-accent/30" : ""}`}
-          placeholder="Ex: 601"
-        />
+        <div className="relative">
+          <input
+            type="text"
+            id="numero"
+            name="numero"
+            value={formData.numero}
+            onChange={handleChange}
+            disabled={!!compte}
+            className={`w-full px-3 py-2 border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-colors ${
+              errors.numero ? "border-red-500" : "border-gray-300"
+            } ${!!compte ? "bg-gray-100 cursor-not-allowed" : "hover:border-gray-400"}`}
+            placeholder="Ex: 601"
+          />
+          {!!compte && (
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <svg
+                className="w-4 h-4 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+            </div>
+          )}
+        </div>
         {errors.numero && (
-          <p className="mt-1 text-xs text-destructive">{errors.numero}</p>
+          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+            <svg
+              className="w-3 h-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            {errors.numero}
+          </p>
         )}
       </div>
 
+      {/* Libellé */}
       <div>
-        <label htmlFor="libelle" className="block text-sm font-medium mb-1">
-          Libellé <span className="text-destructive">*</span>
+        <label
+          htmlFor="libelle"
+          className="block text-sm font-medium mb-1 text-gray-700"
+        >
+          Libellé <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
@@ -128,18 +200,37 @@ export function CompteForm({ compte, onSuccess, onCancel }: CompteFormProps) {
           name="libelle"
           value={formData.libelle}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary ${
-            errors.libelle ? "border-destructive" : ""
+          className={`w-full px-3 py-2 border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-colors hover:border-gray-400 ${
+            errors.libelle ? "border-red-500" : "border-gray-300"
           }`}
           placeholder="Ex: Achats de marchandises"
         />
         {errors.libelle && (
-          <p className="mt-1 text-xs text-destructive">{errors.libelle}</p>
+          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+            <svg
+              className="w-3 h-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            {errors.libelle}
+          </p>
         )}
       </div>
 
+      {/* Type de compte */}
       <div>
-        <label htmlFor="type_compte" className="block text-sm font-medium mb-1">
+        <label
+          htmlFor="type_compte"
+          className="block text-sm font-medium mb-1 text-gray-700"
+        >
           Type de compte
         </label>
         <select
@@ -147,7 +238,7 @@ export function CompteForm({ compte, onSuccess, onCancel }: CompteFormProps) {
           name="type_compte"
           value={formData.type_compte}
           onChange={handleChange}
-          className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-colors hover:border-gray-400 cursor-pointer"
         >
           <option value="">-- Sélectionner un type (optionnel) --</option>
           {Object.entries(TYPE_COMPTE_LABELS).map(([value, label]) => (
@@ -156,32 +247,92 @@ export function CompteForm({ compte, onSuccess, onCancel }: CompteFormProps) {
             </option>
           ))}
         </select>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
+          <svg
+            className="w-3 h-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
           Optionnel mais recommandé pour les rapports
         </p>
       </div>
 
-      <div className="flex justify-end gap-2 pt-4">
+      {/* Boutons */}
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 border rounded-md hover:bg-accent"
           disabled={isLoading}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
           Annuler
         </button>
         <button
           type="submit"
           disabled={isLoading}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[120px] justify-center"
         >
           {isLoading ? (
             <>
-              <span className="animate-spin">⏳</span>
-              Enregistrement...
+              <svg
+                className="animate-spin h-4 w-4 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              <span>Enregistrement...</span>
             </>
           ) : (
-            "Enregistrer"
+            <>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              <span>Enregistrer</span>
+            </>
           )}
         </button>
       </div>

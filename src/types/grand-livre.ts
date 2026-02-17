@@ -21,8 +21,10 @@ export interface GrandLivreCompte {
 }
 
 export interface GrandLivreFilters {
-  compte_debut?: string;
-  compte_fin?: string;
+  compte?: string;
   date_debut?: string;
   date_fin?: string;
 }
+
+export type SortField = "date" | "montant" | "libelle";
+export type SortDirection = "asc" | "desc";

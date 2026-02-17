@@ -1,3 +1,4 @@
+// balance/Balance.tsx
 import React, { useState, useEffect } from "react";
 import {
   BalanceLine,
@@ -5,8 +6,14 @@ import {
   BalanceFilters,
 } from "../../types/balance";
 import { getBalance, checkBalanceEquilibre } from "../../lib/balance.db";
+import { Exercice } from "../../types/exercice";
+import { Spinner } from "../exercices/Spinner";
 
-export function Balance() {
+interface BalanceProps {
+  exerciceOuvert: Exercice | null;
+}
+
+export function Balance({ exerciceOuvert }: BalanceProps) {
   const [lignes, setLignes] = useState<BalanceLine[]>([]);
   const [totaux, setTotaux] = useState<BalanceTotals>({
     total_debit: 0,
@@ -20,13 +27,22 @@ export function Balance() {
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<BalanceFilters>({});
-  const [dateDebut, setDateDebut] = useState("");
-  const [dateFin, setDateFin] = useState("");
+  const [dateDebut, setDateDebut] = useState(exerciceOuvert?.date_debut || "");
+  const [dateFin, setDateFin] = useState(exerciceOuvert?.date_fin || "");
   const [typeFilter, setTypeFilter] = useState<string>("TOUS");
+
+  // Mettre à jour les dates quand l'exercice change
+  useEffect(() => {
+    if (exerciceOuvert) {
+      setDateDebut(exerciceOuvert.date_debut);
+      setDateFin(exerciceOuvert.date_fin);
+    }
+  }, [exerciceOuvert]);
 
   const loadBalance = async () => {
     setIsLoading(true);
     try {
+      console.log("Chargement balance avec filtres:", filters);
       const result = await getBalance(filters);
       setLignes(result.lignes);
       setTotaux(result.totaux);
@@ -46,67 +62,83 @@ export function Balance() {
     }
   };
 
+  // Charger la balance au montage et quand les filtres changent
   useEffect(() => {
-    loadBalance();
+    if (exerciceOuvert) {
+      const defaultFilters: BalanceFilters = {
+        date_debut: exerciceOuvert.date_debut,
+        date_fin: exerciceOuvert.date_fin,
+      };
+      setFilters(defaultFilters);
+    }
+  }, [exerciceOuvert]);
+
+  useEffect(() => {
+    if (Object.keys(filters).length > 0) {
+      loadBalance();
+    }
   }, [filters]);
 
   const handleApplyFilters = (e: React.FormEvent) => {
     e.preventDefault();
-    const newFilters: BalanceFilters = {};
-    if (dateDebut) newFilters.date_debut = dateDebut;
-    if (dateFin) newFilters.date_fin = dateFin;
-    if (typeFilter !== "TOUS") newFilters.type_compte = typeFilter;
+
+    // IMPORTANT: Convertir "TOUS" en undefined pour ne pas filtrer
+    const newFilters: BalanceFilters = {
+      date_debut: dateDebut || undefined,
+      date_fin: dateFin || undefined,
+    };
+
+    // Seulement ajouter type_compte si ce n'est pas "TOUS"
+    if (typeFilter !== "TOUS") {
+      newFilters.type_compte = typeFilter;
+    }
+
+    console.log("Application des filtres:", newFilters);
     setFilters(newFilters);
   };
 
   const handleResetFilters = () => {
-    setDateDebut("");
-    setDateFin("");
+    if (exerciceOuvert) {
+      setDateDebut(exerciceOuvert.date_debut);
+      setDateFin(exerciceOuvert.date_fin);
+    }
     setTypeFilter("TOUS");
-    setFilters({});
+    const defaultFilters: BalanceFilters = {
+      date_debut: exerciceOuvert?.date_debut,
+      date_fin: exerciceOuvert?.date_fin,
+    };
+    setFilters(defaultFilters);
   };
 
   const formatMontant = (montant: number) => {
-    return (
-      new Intl.NumberFormat("fr-BI", { minimumFractionDigits: 0 }).format(
-        montant,
-      ) + " FBU"
-    );
+    return new Intl.NumberFormat("fr-BI", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(montant);
   };
 
   const getTypeBadgeColor = (type: string | null) => {
     const colors: Record<string, string> = {
-      ACTIF: "bg-blue-50 text-blue-700",
-      PASSIF: "bg-purple-50 text-purple-700",
-      PRODUIT: "bg-green-50 text-green-700",
-      CHARGE: "bg-orange-50 text-orange-700",
-      TRESORERIE: "bg-cyan-50 text-cyan-700",
+      ACTIF: "bg-blue-50 text-blue-700 border border-blue-200",
+      PASSIF: "bg-purple-50 text-purple-700 border border-purple-200",
+      PRODUIT: "bg-green-50 text-green-700 border border-green-200",
+      CHARGE: "bg-orange-50 text-orange-700 border border-orange-200",
+      TRESORERIE: "bg-cyan-50 text-cyan-700 border border-cyan-200",
     };
-    return type && colors[type] ? colors[type] : "bg-gray-50 text-gray-700";
+    return type && colors[type]
+      ? colors[type]
+      : "bg-gray-50 text-gray-700 border border-gray-200";
   };
 
-  if (isLoading) {
+  if (!exerciceOuvert) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <svg
-          className="animate-spin h-8 w-8 text-gray-900"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
+      <div className="p-8">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+          <p className="text-amber-700">
+            Veuillez d'abord créer et ouvrir un exercice pour accéder à la
+            Balance
+          </p>
+        </div>
       </div>
     );
   }
@@ -117,14 +149,21 @@ export function Balance() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Balance comptable</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Récapitulatif des soldes de tous les comptes
+          Récapitulatif des soldes de tous les comptes pour l'exercice{" "}
+          <span className="font-medium text-gray-700">
+            {exerciceOuvert.nom_exercice}
+          </span>
         </p>
       </div>
 
       {/* Message d'équilibre */}
       {equilibre && (
         <div
-          className={`mb-6 p-4 ${equilibre.est_equilibree ? "bg-green-50 border border-green-200" : "bg-yellow-50 border border-yellow-200"}`}
+          className={`mb-6 p-4 rounded-xl ${
+            equilibre.est_equilibree
+              ? "bg-green-50 border border-green-200"
+              : "bg-yellow-50 border border-yellow-200"
+          }`}
         >
           <div className="flex items-center gap-3">
             {equilibre.est_equilibree ? (
@@ -158,17 +197,21 @@ export function Balance() {
             )}
             <div>
               <p
-                className={`font-medium ${equilibre.est_equilibree ? "text-green-700" : "text-yellow-700"}`}
+                className={`font-medium ${
+                  equilibre.est_equilibree
+                    ? "text-green-700"
+                    : "text-yellow-700"
+                }`}
               >
                 {equilibre.est_equilibree
                   ? "Balance équilibrée"
                   : "Balance non équilibrée"}
               </p>
               <p className="text-sm text-gray-600">
-                Total débit: {formatMontant(totaux.total_debit)} | Total crédit:{" "}
-                {formatMontant(totaux.total_credit)}
+                Total débit: {formatMontant(totaux.total_debit)} FBU | Total
+                crédit: {formatMontant(totaux.total_credit)} FBU
                 {!equilibre.est_equilibree && (
-                  <> | Écart: {formatMontant(equilibre.ecart)}</>
+                  <> | Écart: {formatMontant(equilibre.ecart)} FBU</>
                 )}
               </p>
             </div>
@@ -176,180 +219,118 @@ export function Balance() {
         </div>
       )}
 
-      {/* Filtres */}
-      <form
-        onSubmit={handleApplyFilters}
-        className="mb-6 p-6 bg-gray-50 border border-gray-200"
-      >
-        <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wider mb-4">
-          Filtres
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              Date début
-            </label>
-            <input
-              type="date"
-              value={dateDebut}
-              onChange={(e) => setDateDebut(e.target.value)}
-              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Date fin</label>
-            <input
-              type="date"
-              value={dateFin}
-              onChange={(e) => setDateFin(e.target.value)}
-              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              Type de compte
-            </label>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-            >
-              <option value="TOUS">Tous les types</option>
-              <option value="ACTIF">Actif</option>
-              <option value="PASSIF">Passif</option>
-              <option value="CHARGE">Charge</option>
-              <option value="PRODUIT">Produit</option>
-              <option value="TRESORERIE">Trésorerie</option>
-            </select>
-          </div>
-          <div className="flex items-end gap-2">
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800"
-            >
-              Appliquer
-            </button>
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
-            >
-              Réinitialiser
-            </button>
-          </div>
-        </div>
-      </form>
-
       {/* Tableau */}
-      <div className="border border-gray-200 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                N°
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Libellé
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Type
-              </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                Total Débit
-              </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                Total Crédit
-              </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                Solde Débiteur
-              </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                Solde Créditeur
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {lignes.map((ligne) => (
-              <tr key={ligne.compte_numero} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-sm text-gray-900">
-                  {ligne.compte_numero}
-                </td>
-                <td className="px-4 py-3 text-sm text-gray-900">
-                  {ligne.compte_libelle}
-                </td>
-                <td className="px-4 py-3">
-                  {ligne.type_compte && (
-                    <span
-                      className={`inline-flex items-center px-2 py-1 text-xs font-medium ${getTypeBadgeColor(ligne.type_compte)}`}
-                    >
-                      {ligne.type_compte}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-sm text-blue-600">
-                  {ligne.total_debit > 0
-                    ? formatMontant(ligne.total_debit)
-                    : "-"}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-sm text-red-600">
-                  {ligne.total_credit > 0
-                    ? formatMontant(ligne.total_credit)
-                    : "-"}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-sm text-blue-600">
-                  {ligne.solde_debiteur > 0
-                    ? formatMontant(ligne.solde_debiteur)
-                    : "-"}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-sm text-red-600">
-                  {ligne.solde_crediteur > 0
-                    ? formatMontant(ligne.solde_crediteur)
-                    : "-"}
-                </td>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <Spinner size="lg" />
+        </div>
+      ) : (
+        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+          <table className="w-full">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  N°
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  Libellé
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  Total Débit
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  Total Crédit
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  Solde Débiteur
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  Solde Créditeur
+                </th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot className="bg-gray-50 font-medium">
-            <tr>
-              <td colSpan={3} className="px-4 py-3 text-right text-gray-700">
-                TOTAUX
-              </td>
-              <td className="px-4 py-3 text-right font-mono text-blue-600">
-                {formatMontant(totaux.total_debit)}
-              </td>
-              <td className="px-4 py-3 text-right font-mono text-red-600">
-                {formatMontant(totaux.total_credit)}
-              </td>
-              <td className="px-4 py-3 text-right font-mono text-blue-600">
-                {formatMontant(totaux.total_solde_debiteur)}
-              </td>
-              <td className="px-4 py-3 text-right font-mono text-red-600">
-                {formatMontant(totaux.total_solde_crediteur)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-
-        {lignes.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">
-              Aucune donnée pour la période sélectionnée
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Légende */}
-      <div className="mt-4 text-xs text-gray-500 space-y-1">
-        <p className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-          Balance équilibrée : Total débits = Total crédits
-        </p>
-        <p className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
-          Balance non équilibrée : Écart à corriger
-        </p>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {lignes.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-12 text-center text-gray-500"
+                  >
+                    Aucune donnée pour la période sélectionnée
+                  </td>
+                </tr>
+              ) : (
+                lignes.map((ligne) => (
+                  <tr
+                    key={ligne.compte_numero}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-4 py-3 font-mono text-sm font-medium text-gray-900">
+                      {ligne.compte_numero}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {ligne.compte_libelle}
+                    </td>
+                    <td className="px-4 py-3">
+                      {ligne.type_compte && (
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full ${getTypeBadgeColor(ligne.type_compte)}`}
+                        >
+                          {ligne.type_compte}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-blue-600">
+                      {ligne.total_debit > 0
+                        ? formatMontant(ligne.total_debit) + " FBU"
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-red-600">
+                      {ligne.total_credit > 0
+                        ? formatMontant(ligne.total_credit) + " FBU"
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-blue-600">
+                      {ligne.solde_debiteur > 0
+                        ? formatMontant(ligne.solde_debiteur) + " FBU"
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-red-600">
+                      {ligne.solde_crediteur > 0
+                        ? formatMontant(ligne.solde_crediteur) + " FBU"
+                        : "-"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {lignes.length > 0 && (
+              <tfoot className="bg-gray-800 text-white font-medium">
+                <tr>
+                  <td colSpan={3} className="px-4 py-4 text-right text-sm">
+                    TOTAUX GÉNÉRAUX
+                  </td>
+                  <td className="px-4 py-4 text-right font-mono text-sm">
+                    {formatMontant(totaux.total_debit)} FBU
+                  </td>
+                  <td className="px-4 py-4 text-right font-mono text-sm">
+                    {formatMontant(totaux.total_credit)} FBU
+                  </td>
+                  <td className="px-4 py-4 text-right font-mono text-sm">
+                    {formatMontant(totaux.total_solde_debiteur)} FBU
+                  </td>
+                  <td className="px-4 py-4 text-right font-mono text-sm">
+                    {formatMontant(totaux.total_solde_crediteur)} FBU
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
     </div>
   );
 }

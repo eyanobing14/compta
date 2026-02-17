@@ -36,14 +36,55 @@ export async function getEcritures(
     params.push(filters.dateFin);
   }
 
+  // Recherche par compte (débit ou crédit)
   if (filters?.compte) {
     query += ` AND (e.compte_debit = ? OR e.compte_credit = ?)`;
     params.push(filters.compte, filters.compte);
   }
 
-  if (filters?.searchTerm) {
+  // Recherche par compte débit spécifique
+  if (filters?.compteDebit) {
+    query += ` AND e.compte_debit = ?`;
+    params.push(filters.compteDebit);
+  }
+
+  // Recherche par compte crédit spécifique
+  if (filters?.compteCredit) {
+    query += ` AND e.compte_credit = ?`;
+    params.push(filters.compteCredit);
+  }
+
+  // Recherche par numéro de pièce
+  if (filters?.numeroPiece) {
+    query += ` AND e.numero_piece LIKE ?`;
+    params.push(`%${filters.numeroPiece}%`);
+  }
+
+  // Recherche par plage de montant
+  if (filters?.montantMin !== undefined) {
+    query += ` AND e.montant >= ?`;
+    params.push(filters.montantMin);
+  }
+
+  if (filters?.montantMax !== undefined) {
+    query += ` AND e.montant <= ?`;
+    params.push(filters.montantMax);
+  }
+
+  // Recherche textuelle générale (libellé, observation)
+  if (filters?.searchTerm && filters?.searchType === "libelle") {
     query += ` AND (e.libelle LIKE ? OR e.observation LIKE ?)`;
     params.push(`%${filters.searchTerm}%`, `%${filters.searchTerm}%`);
+  }
+
+  // Recherche dans les comptes (numéros et libellés)
+  if (filters?.searchTerm && filters?.searchType === "comptes") {
+    query += ` AND (
+      e.compte_debit IN (SELECT numero FROM comptes WHERE numero LIKE ? OR libelle LIKE ?)
+      OR e.compte_credit IN (SELECT numero FROM comptes WHERE numero LIKE ? OR libelle LIKE ?)
+    )`;
+    const searchPattern = `%${filters.searchTerm}%`;
+    params.push(searchPattern, searchPattern, searchPattern, searchPattern);
   }
 
   query += ` ORDER BY e.date DESC, e.id DESC`;
@@ -124,6 +165,14 @@ export async function createEcriture(data: EcritureFormData): Promise<number> {
     throw new Error("COMPTES_IDENTIQUES");
   }
 
+  // Vérifier si le numéro de pièce existe déjà (s'il est fourni)
+  if (data.numero_piece && data.numero_piece.trim() !== "") {
+    const exists = await checkNumeroPieceExists(data.numero_piece);
+    if (exists) {
+      throw new Error("NUMERO_PIECE_EXISTANT");
+    }
+  }
+
   // Insérer l'écriture
   await db.execute(
     `INSERT INTO ecritures (
@@ -179,9 +228,9 @@ export async function deleteEcriture(id: number): Promise<void> {
 }
 
 /**
- * Récupère le résumé du journal
+ * Récupère le résumé du journal filtrés par exercice
  */
-export async function getJournalSummary(): Promise<{
+export async function getJournalSummary(exerciceId?: number): Promise<{
   total_ecritures: number;
   total_debit: number;
   ecritures_aujourdhui: number;
@@ -189,20 +238,25 @@ export async function getJournalSummary(): Promise<{
   const db = await getDb();
   const aujourdhui = new Date().toISOString().split("T")[0];
 
+  let query = `SELECT 
+    COUNT(*) as total_ecritures,
+    COALESCE(SUM(montant), 0) as total_debit,
+    SUM(CASE WHEN date = ? THEN 1 ELSE 0 END) as ecritures_aujourdhui
+  FROM ecritures`;
+  const params: any[] = [aujourdhui];
+
+  if (exerciceId) {
+    query += ` WHERE exercice_id = ?`;
+    params.push(exerciceId);
+  }
+
   const result = await db.select<
     {
       total_ecritures: number;
       total_debit: number;
       ecritures_aujourdhui: number;
     }[]
-  >(
-    `SELECT 
-      COUNT(*) as total_ecritures,
-      COALESCE(SUM(montant), 0) as total_debit,
-      SUM(CASE WHEN date = ? THEN 1 ELSE 0 END) as ecritures_aujourdhui
-    FROM ecritures`,
-    [aujourdhui],
-  );
+  >(query, params);
 
   return {
     total_ecritures: result[0]?.total_ecritures || 0,
@@ -236,11 +290,20 @@ export async function searchComptesForEcriture(
 }
 
 /**
- * Récupère le dernier numéro de pièce
+ * Récupère le dernier numéro de pièce pour une année donnée
  */
-export async function getLastNumeroPiece(): Promise<string> {
+export async function getLastNumeroPiece(annee?: number): Promise<string> {
   const db = await getDb();
-  const annee = new Date().getFullYear();
+
+  // Si l'année n'est pas fournie, utiliser l'exercice actif
+  if (!annee) {
+    const exerciceActif = await getExerciceActif();
+    if (exerciceActif) {
+      annee = new Date(exerciceActif.date_debut).getFullYear();
+    } else {
+      annee = new Date().getFullYear();
+    }
+  }
 
   const result = await db.select<{ max_numero: string }[]>(
     `SELECT MAX(numero_piece) as max_numero 
@@ -341,6 +404,21 @@ export async function updateEcriture(
     throw new Error("COMPTES_IDENTIQUES");
   }
 
+  // Récupérer l'écriture existante pour vérifier si le numéro de pièce change
+  const ecritureExistante = await getEcritureById(id);
+
+  // Vérifier si le numéro de pièce a changé et s'il existe déjà
+  if (
+    data.numero_piece &&
+    data.numero_piece.trim() !== "" &&
+    ecritureExistante?.numero_piece !== data.numero_piece
+  ) {
+    const exists = await checkNumeroPieceExists(data.numero_piece);
+    if (exists) {
+      throw new Error("NUMERO_PIECE_EXISTANT");
+    }
+  }
+
   // Mettre à jour l'écriture
   await db.execute(
     `UPDATE ecritures 
@@ -359,6 +437,7 @@ export async function updateEcriture(
     ],
   );
 }
+
 /**
  * Récupère les écritures avec pagination
  */
@@ -391,14 +470,55 @@ export async function getEcrituresPaginated(
     params.push(filters.dateFin);
   }
 
+  // Recherche par compte (débit ou crédit)
   if (filters?.compte) {
     query += ` AND (e.compte_debit = ? OR e.compte_credit = ?)`;
     params.push(filters.compte, filters.compte);
   }
 
-  if (filters?.searchTerm) {
+  // Recherche par compte débit spécifique
+  if (filters?.compteDebit) {
+    query += ` AND e.compte_debit = ?`;
+    params.push(filters.compteDebit);
+  }
+
+  // Recherche par compte crédit spécifique
+  if (filters?.compteCredit) {
+    query += ` AND e.compte_credit = ?`;
+    params.push(filters.compteCredit);
+  }
+
+  // Recherche par numéro de pièce
+  if (filters?.numeroPiece) {
+    query += ` AND e.numero_piece LIKE ?`;
+    params.push(`%${filters.numeroPiece}%`);
+  }
+
+  // Recherche par plage de montant
+  if (filters?.montantMin !== undefined) {
+    query += ` AND e.montant >= ?`;
+    params.push(filters.montantMin);
+  }
+
+  if (filters?.montantMax !== undefined) {
+    query += ` AND e.montant <= ?`;
+    params.push(filters.montantMax);
+  }
+
+  // Recherche textuelle générale (libellé, observation)
+  if (filters?.searchTerm && filters?.searchType === "libelle") {
     query += ` AND (e.libelle LIKE ? OR e.observation LIKE ?)`;
     params.push(`%${filters.searchTerm}%`, `%${filters.searchTerm}%`);
+  }
+
+  // Recherche dans les comptes (numéros et libellés)
+  if (filters?.searchTerm && filters?.searchType === "comptes") {
+    query += ` AND (
+      e.compte_debit IN (SELECT numero FROM comptes WHERE numero LIKE ? OR libelle LIKE ?)
+      OR e.compte_credit IN (SELECT numero FROM comptes WHERE numero LIKE ? OR libelle LIKE ?)
+    )`;
+    const searchPattern = `%${filters.searchTerm}%`;
+    params.push(searchPattern, searchPattern, searchPattern, searchPattern);
   }
 
   query += ` ORDER BY e.date DESC, e.id DESC LIMIT ? OFFSET ?`;
@@ -428,16 +548,73 @@ export async function getTotalEcrituresCount(
     params.push(filters.dateFin);
   }
 
+  // Recherche par compte (débit ou crédit)
   if (filters?.compte) {
     query += ` AND (e.compte_debit = ? OR e.compte_credit = ?)`;
     params.push(filters.compte, filters.compte);
   }
 
-  if (filters?.searchTerm) {
+  // Recherche par compte débit spécifique
+  if (filters?.compteDebit) {
+    query += ` AND e.compte_debit = ?`;
+    params.push(filters.compteDebit);
+  }
+
+  // Recherche par compte crédit spécifique
+  if (filters?.compteCredit) {
+    query += ` AND e.compte_credit = ?`;
+    params.push(filters.compteCredit);
+  }
+
+  // Recherche par numéro de pièce
+  if (filters?.numeroPiece) {
+    query += ` AND e.numero_piece LIKE ?`;
+    params.push(`%${filters.numeroPiece}%`);
+  }
+
+  // Recherche par plage de montant
+  if (filters?.montantMin !== undefined) {
+    query += ` AND e.montant >= ?`;
+    params.push(filters.montantMin);
+  }
+
+  if (filters?.montantMax !== undefined) {
+    query += ` AND e.montant <= ?`;
+    params.push(filters.montantMax);
+  }
+
+  // Recherche textuelle générale (libellé, observation)
+  if (filters?.searchTerm && filters?.searchType === "libelle") {
     query += ` AND (e.libelle LIKE ? OR e.observation LIKE ?)`;
     params.push(`%${filters.searchTerm}%`, `%${filters.searchTerm}%`);
   }
 
+  // Recherche dans les comptes (numéros et libellés)
+  if (filters?.searchTerm && filters?.searchType === "comptes") {
+    query += ` AND (
+      e.compte_debit IN (SELECT numero FROM comptes WHERE numero LIKE ? OR libelle LIKE ?)
+      OR e.compte_credit IN (SELECT numero FROM comptes WHERE numero LIKE ? OR libelle LIKE ?)
+    )`;
+    const searchPattern = `%${filters.searchTerm}%`;
+    params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+  }
+
   const result = await db.select<{ count: number }[]>(query, params);
   return result[0]?.count || 0;
+}
+
+/**
+ * Vérifie si un numéro de pièce existe déjà
+ */
+export async function checkNumeroPieceExists(
+  numeroPiece: string,
+): Promise<boolean> {
+  const db = await getDb();
+
+  const result = await db.select<{ count: number }[]>(
+    "SELECT COUNT(*) as count FROM ecritures WHERE numero_piece = ?",
+    [numeroPiece],
+  );
+
+  return result[0].count > 0;
 }

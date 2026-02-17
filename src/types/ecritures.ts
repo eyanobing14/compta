@@ -5,6 +5,7 @@ export interface Ecriture {
   compte_debit: string;
   compte_credit: string;
   montant: number;
+  numero_piece: string | null;
   observation: string | null;
   created_at: string;
   // Jointures optionnelles
@@ -18,7 +19,7 @@ export interface EcritureFormData {
   compte_debit: string;
   compte_credit: string;
   montant: string;
-  numero_piece: string; // <-- Ajouter // string pour la gestion du formulaire
+  numero_piece: string;
   observation: string;
 }
 
@@ -27,4 +28,11 @@ export interface EcritureFilters {
   dateFin?: string;
   compte?: string;
   searchTerm?: string;
+  // Nouveaux filtres
+  compteDebit?: string;
+  compteCredit?: string;
+  montantMin?: number;
+  montantMax?: number;
+  numeroPiece?: string;
+  searchType?: "libelle" | "comptes" | "montant" | "piece"; // Changé "tout" en "libelle"
 }

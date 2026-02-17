@@ -1,7 +1,224 @@
 import React, { useState, useEffect } from "react";
 import { Compte, TypeCompte, TYPE_COMPTE_LABELS } from "../../types/comptes";
-import { getComptes, deleteCompte } from "../../lib/comptes.db";
+import {
+  getComptes,
+  deleteCompte,
+  checkCompteUsed,
+} from "../../lib/comptes.db";
 import { CompteForm } from "./CompteForm";
+
+// Dialogue de suppression pour compte
+function DeleteCompteDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  compteDetails,
+  isUsed,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  compteDetails: {
+    numero: string;
+    libelle: string;
+  };
+  isUsed: boolean;
+}) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
+  const handleConfirm = async () => {
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      await onConfirm();
+      onClose();
+    } catch (error) {
+      setError("Erreur lors de la suppression");
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg max-w-md w-full">
+        <div className="p-6">
+          {/* En-tête */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-2 ${isUsed ? "bg-red-100" : "bg-amber-100"} rounded-full`}
+              >
+                <svg
+                  className={`w-6 h-6 ${isUsed ? "text-red-600" : "text-amber-600"}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  {isUsed ? (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  ) : (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  )}
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">
+                Supprimer le compte
+              </h3>
+            </div>
+            <button
+              onClick={onClose}
+              disabled={isDeleting}
+              className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+
+          {/* Message d'avertissement */}
+          <div
+            className={`mb-6 p-4 ${isUsed ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"} border rounded-md`}
+          >
+            {isUsed ? (
+              <>
+                <p className="text-sm font-medium text-red-800 mb-1">
+                  ⚠️ Ce compte est utilisé dans des écritures
+                </p>
+                <p className="text-xs text-red-600">
+                  Impossible de supprimer un compte qui a déjà été utilisé.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-amber-800 mb-1">
+                  Êtes-vous sûr de vouloir supprimer ce compte ?
+                </p>
+                <p className="text-xs text-amber-600">
+                  Cette action est irréversible.
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Détails du compte */}
+          <div className="mb-6 space-y-3">
+            <div>
+              <p className="text-xs text-gray-500 uppercase mb-1">Compte</p>
+              <div className="bg-gray-50 p-3 border border-gray-200 rounded-md">
+                <p className="font-mono text-sm font-medium text-gray-900">
+                  {compteDetails.numero}
+                </p>
+                <p className="text-sm text-gray-700 mt-1">
+                  {compteDetails.libelle}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Message d'erreur */}
+          {error && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md">
+              ❌ {error}
+            </div>
+          )}
+
+          {/* Boutons */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              onClick={onClose}
+              disabled={isDeleting}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            {!isUsed && (
+              <button
+                onClick={handleConfirm}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2 min-w-[120px] justify-center"
+              >
+                {isDeleting ? (
+                  <>
+                    <svg
+                      className="animate-spin h-4 w-4 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    <span>Suppression...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    <span>Confirmer</span>
+                  </>
+                )}
+              </button>
+            )}
+            {isUsed && (
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 rounded-md transition-colors cursor-pointer"
+              >
+                Fermer
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function ComptesList() {
   const [comptes, setComptes] = useState<Compte[]>([]);
@@ -10,6 +227,15 @@ export function ComptesList() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingCompte, setEditingCompte] = useState<Compte | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean;
+    compte: Compte | null;
+    isUsed: boolean;
+  }>({
+    isOpen: false,
+    compte: null,
+    isUsed: false,
+  });
 
   const loadComptes = async () => {
     setIsLoading(true);
@@ -32,20 +258,28 @@ export function ComptesList() {
     loadComptes();
   }, [filterType]);
 
-  const handleDelete = async (numero: string, libelle: string) => {
-    if (
-      !confirm(
-        `Voulez-vous vraiment supprimer le compte ${numero} - ${libelle} ?`,
-      )
-    )
-      return;
+  const handleDeleteClick = async (compte: Compte) => {
     try {
-      await deleteCompte(numero);
+      const isUsed = await checkCompteUsed(compte.numero);
+      setDeleteDialog({
+        isOpen: true,
+        compte: compte,
+        isUsed: isUsed,
+      });
+    } catch (error) {
+      console.error("Erreur vérification utilisation compte:", error);
+      alert("Erreur lors de la vérification du compte");
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog.compte) return;
+
+    try {
+      await deleteCompte(deleteDialog.compte.numero);
       await loadComptes();
     } catch (err) {
-      alert(
-        err instanceof Error ? err.message : "Erreur lors de la suppression",
-      );
+      throw err;
     }
   };
 
@@ -188,6 +422,22 @@ export function ComptesList() {
 
   return (
     <div className="p-8">
+      {/* Dialogue de suppression */}
+      {deleteDialog.isOpen && deleteDialog.compte && (
+        <DeleteCompteDialog
+          isOpen={deleteDialog.isOpen}
+          onClose={() =>
+            setDeleteDialog({ isOpen: false, compte: null, isUsed: false })
+          }
+          onConfirm={handleDeleteConfirm}
+          compteDetails={{
+            numero: deleteDialog.compte.numero,
+            libelle: deleteDialog.compte.libelle,
+          }}
+          isUsed={deleteDialog.isUsed}
+        />
+      )}
+
       {/* En-tête */}
       <div className="flex justify-between items-center mb-8">
         <div>
@@ -201,10 +451,10 @@ export function ComptesList() {
             setEditingCompte(null);
             setShowForm(true);
           }}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors flex items-center gap-2 cursor-pointer"
+          className="px-5 py-3 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors flex items-center gap-2 cursor-pointer"
         >
           <svg
-            className="w-4 h-4"
+            className="w-5 h-5"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -256,8 +506,7 @@ export function ComptesList() {
             }`}
           >
             {getTypeIcon(type)}
-            <span>{label.replace(/^[^\s]+\s/, "")}</span>{" "}
-            {/* Retire l'emoji du label */}
+            <span>{label.replace(/^[^\s]+\s/, "")}</span>
           </button>
         ))}
       </div>
@@ -374,7 +623,7 @@ export function ComptesList() {
                     </svg>
                   </button>
                   <button
-                    onClick={() => handleDelete(compte.numero, compte.libelle)}
+                    onClick={() => handleDeleteClick(compte)}
                     className="p-2 text-gray-400 hover:text-red-600 transition-colors cursor-pointer rounded-md hover:bg-red-50"
                     title="Supprimer"
                   >

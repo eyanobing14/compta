@@ -1,21 +1,131 @@
-import React, { useState, useEffect } from "react";
-import { GrandLivreCompte, GrandLivreFilters } from "../../types/grand-livre";
-import { getGrandLivre } from "../../lib/grand-livre.db";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  GrandLivreCompte,
+  SortField,
+  SortDirection,
+} from "../../types/grand-livre";
+import { getGrandLivreForCompte } from "../../lib/grand-livre.db";
+import { searchComptes } from "../../lib/comptes.db";
+import { Exercice } from "../../types/exercice";
+import { Spinner } from "../exercices/Spinner";
 
-export function GrandLivre() {
-  const [data, setData] = useState<GrandLivreCompte[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [expandedCompte, setExpandedCompte] = useState<string | null>(null);
-  const [filters, setFilters] = useState<GrandLivreFilters>({});
-  const [compteDebut, setCompteDebut] = useState("");
-  const [compteFin, setCompteFin] = useState("");
-  const [dateDebut, setDateDebut] = useState("");
-  const [dateFin, setDateFin] = useState("");
+interface GrandLivreProps {
+  exerciceOuvert: Exercice | null;
+}
+
+export function GrandLivre({ exerciceOuvert }: GrandLivreProps) {
+  const [data, setData] = useState<GrandLivreCompte | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [compteSearch, setCompteSearch] = useState("");
+  const [compteSuggestions, setCompteSuggestions] = useState<
+    Array<{ numero: string; libelle: string }>
+  >([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedCompte, setSelectedCompte] = useState<{
+    numero: string;
+    libelle: string;
+  } | null>(null);
+  const [dateDebut, setDateDebut] = useState(exerciceOuvert?.date_debut || "");
+  const [dateFin, setDateFin] = useState(exerciceOuvert?.date_fin || "");
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [savedSearches, setSavedSearches] = useState<
+    Array<{ compte: string; dateDebut: string; dateFin: string }>
+  >([]);
+  const [showSavedSearches, setShowSavedSearches] = useState(false);
+
+  // État pour la pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [paginatedLignes, setPaginatedLignes] = useState<any[]>([]);
+  const ITEMS_PER_PAGE = 20;
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Charger les recherches sauvegardées depuis localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("grandLivreSavedSearches");
+    if (saved) {
+      setSavedSearches(JSON.parse(saved));
+    }
+  }, []);
+
+  // Mettre à jour les dates quand l'exercice change
+  useEffect(() => {
+    if (exerciceOuvert) {
+      setDateDebut(exerciceOuvert.date_debut);
+      setDateFin(exerciceOuvert.date_fin);
+    }
+  }, [exerciceOuvert]);
+
+  // Fermer les suggestions quand on clique ailleurs
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Recherche de comptes
+  useEffect(() => {
+    const searchComptesAsync = async () => {
+      if (compteSearch.length < 2) {
+        setCompteSuggestions([]);
+        return;
+      }
+
+      try {
+        const results = await searchComptes(compteSearch);
+        setCompteSuggestions(results);
+        setShowSuggestions(true);
+      } catch (error) {
+        console.error("Erreur recherche comptes:", error);
+      }
+    };
+
+    const timeoutId = setTimeout(searchComptesAsync, 300);
+    return () => clearTimeout(timeoutId);
+  }, [compteSearch]);
+
+  // Mettre à jour la pagination quand les données ou le tri changent
+  useEffect(() => {
+    if (data) {
+      const sorted = getSortedLignes();
+      setTotalPages(Math.ceil(sorted.length / ITEMS_PER_PAGE));
+      setCurrentPage(1); // Reset à la première page quand les données changent
+    }
+  }, [data, sortField, sortDirection]);
+
+  // Mettre à jour les lignes paginées
+  useEffect(() => {
+    if (data) {
+      const sorted = getSortedLignes();
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      const end = start + ITEMS_PER_PAGE;
+      setPaginatedLignes(sorted.slice(start, end));
+    }
+  }, [data, currentPage, sortField, sortDirection]);
 
   const loadGrandLivre = async () => {
+    if (!selectedCompte) return;
+
     setIsLoading(true);
     try {
-      const result = await getGrandLivre(filters);
+      const result = await getGrandLivreForCompte(
+        selectedCompte.numero,
+        dateDebut || undefined,
+        dateFin || undefined,
+      );
       setData(result);
     } catch (error) {
       console.error("Erreur chargement Grand Livre:", error);
@@ -24,30 +134,79 @@ export function GrandLivre() {
     }
   };
 
-  useEffect(() => {
-    loadGrandLivre();
-  }, [filters]);
+  const handleSelectCompte = (compte: { numero: string; libelle: string }) => {
+    setSelectedCompte(compte);
+    setCompteSearch(`${compte.numero} - ${compte.libelle}`);
+    setShowSuggestions(false);
+  };
 
-  const handleApplyFilters = (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setFilters({
-      compte_debut: compteDebut || undefined,
-      compte_fin: compteFin || undefined,
-      date_debut: dateDebut || undefined,
-      date_fin: dateFin || undefined,
-    });
+    loadGrandLivre();
   };
 
-  const handleResetFilters = () => {
-    setCompteDebut("");
-    setCompteFin("");
-    setDateDebut("");
-    setDateFin("");
-    setFilters({});
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
   };
 
-  const toggleCompte = (compteNumero: string) => {
-    setExpandedCompte(expandedCompte === compteNumero ? null : compteNumero);
+  const saveCurrentSearch = () => {
+    if (!selectedCompte) return;
+
+    const newSearch = {
+      compte: selectedCompte.numero,
+      dateDebut,
+      dateFin,
+    };
+
+    const updatedSearches = [
+      newSearch,
+      ...savedSearches.filter(
+        (s) =>
+          s.compte !== newSearch.compte ||
+          s.dateDebut !== newSearch.dateDebut ||
+          s.dateFin !== newSearch.dateFin,
+      ),
+    ].slice(0, 10);
+
+    setSavedSearches(updatedSearches);
+    localStorage.setItem(
+      "grandLivreSavedSearches",
+      JSON.stringify(updatedSearches),
+    );
+  };
+
+  const loadSavedSearch = (search: {
+    compte: string;
+    dateDebut: string;
+    dateFin: string;
+  }) => {
+    const compte = { numero: search.compte, libelle: "" };
+    setSelectedCompte(compte);
+    setCompteSearch(search.compte);
+    setDateDebut(search.dateDebut);
+    setDateFin(search.dateFin);
+    setShowSavedSearches(false);
+
+    setTimeout(() => loadGrandLivre(), 100);
+  };
+
+  const deleteSavedSearch = (index: number) => {
+    const updatedSearches = savedSearches.filter((_, i) => i !== index);
+    setSavedSearches(updatedSearches);
+    localStorage.setItem(
+      "grandLivreSavedSearches",
+      JSON.stringify(updatedSearches),
+    );
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const formatMontant = (montant: number) => {
@@ -58,39 +217,96 @@ export function GrandLivre() {
     );
   };
 
-  const getTypeCompteLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      ACTIF: "Actif",
-      PASSIF: "Passif",
-      PRODUIT: "Produit",
-      CHARGE: "Charge",
-      TRESORERIE: "Trésorerie",
-    };
-    return labels[type] || type;
+  const getSortedLignes = () => {
+    if (!data) return [];
+
+    const sorted = [...data.lignes];
+
+    switch (sortField) {
+      case "date":
+        sorted.sort((a, b) => {
+          const dateA = new Date(a.date).getTime();
+          const dateB = new Date(b.date).getTime();
+          return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
+        });
+        break;
+      case "montant":
+        sorted.sort((a, b) => {
+          const montantA = a.debit || a.credit || 0;
+          const montantB = b.debit || b.credit || 0;
+          return sortDirection === "asc"
+            ? montantA - montantB
+            : montantB - montantA;
+        });
+        break;
+      case "libelle":
+        sorted.sort((a, b) => {
+          const compare = a.libelle.localeCompare(b.libelle);
+          return sortDirection === "asc" ? compare : -compare;
+        });
+        break;
+    }
+
+    return sorted;
   };
 
-  if (isLoading) {
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return null;
+    return sortDirection === "asc" ? "↑" : "↓";
+  };
+
+  const getTypeCompteColor = (type: string) => {
+    const colors: Record<string, string> = {
+      ACTIF: "bg-blue-100 text-blue-800",
+      PASSIF: "bg-green-100 text-green-800",
+      PRODUIT: "bg-purple-100 text-purple-800",
+      CHARGE: "bg-orange-100 text-orange-800",
+      TRESORERIE: "bg-cyan-100 text-cyan-800",
+    };
+    return colors[type] || "bg-gray-100 text-gray-800";
+  };
+
+  // Générer les numéros de page à afficher
+  const getPageNumbers = () => {
+    const delta = 2;
+    const range = [];
+    const rangeWithDots = [];
+    let l;
+
+    for (let i = 1; i <= totalPages; i++) {
+      if (
+        i === 1 ||
+        i === totalPages ||
+        (i >= currentPage - delta && i <= currentPage + delta)
+      ) {
+        range.push(i);
+      }
+    }
+
+    range.forEach((i) => {
+      if (l) {
+        if (i - l === 2) {
+          rangeWithDots.push(l + 1);
+        } else if (i - l !== 1) {
+          rangeWithDots.push("...");
+        }
+      }
+      rangeWithDots.push(i);
+      l = i;
+    });
+
+    return rangeWithDots;
+  };
+
+  if (!exerciceOuvert) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <svg
-          className="animate-spin h-8 w-8 text-gray-900"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
+      <div className="p-8">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+          <p className="text-amber-700">
+            Veuillez d'abord créer et ouvrir un exercice pour accéder au Grand
+            Livre
+          </p>
+        </div>
       </div>
     );
   }
@@ -107,37 +323,130 @@ export function GrandLivre() {
 
       {/* Filtres */}
       <form
-        onSubmit={handleApplyFilters}
-        className="mb-6 p-6 bg-gray-50 border border-gray-200"
+        onSubmit={handleSearch}
+        className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-xl"
       >
-        <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wider mb-4">
-          Filtres
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wider">
+            Filtres
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowSavedSearches(!showSavedSearches)}
+              className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Recherches sauvegardées
+            </button>
+            {selectedCompte && (
+              <button
+                type="button"
+                onClick={saveCurrentSearch}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-gray-700 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer"
+              >
+                Sauvegarder cette recherche
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Recherches sauvegardées */}
+        {showSavedSearches && savedSearches.length > 0 && (
+          <div className="mb-4 p-3 bg-white border border-gray-200 rounded-lg">
+            <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
+              Recherches récentes
+            </h4>
+            <div className="space-y-2">
+              {savedSearches.map((search, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between group"
+                >
+                  <button
+                    type="button"
+                    onClick={() => loadSavedSearch(search)}
+                    className="flex-1 text-left px-2 py-1.5 text-sm hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <span className="font-mono font-medium text-gray-900">
+                      {search.compte}
+                    </span>
+                    <span className="text-gray-500 text-xs ml-2">
+                      {new Date(search.dateDebut).toLocaleDateString("fr-BI")} →{" "}
+                      {new Date(search.dateFin).toLocaleDateString("fr-BI")}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteSavedSearch(index)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all cursor-pointer"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Sélection du compte */}
+          <div className="relative">
             <label className="block text-xs text-gray-500 mb-1">
-              Compte début
+              Compte <span className="text-red-500">*</span>
             </label>
             <input
+              ref={searchInputRef}
               type="text"
-              value={compteDebut}
-              onChange={(e) => setCompteDebut(e.target.value)}
-              placeholder="Ex: 401"
-              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+              value={compteSearch}
+              onChange={(e) => {
+                setCompteSearch(e.target.value);
+                if (selectedCompte) setSelectedCompte(null);
+              }}
+              onFocus={() =>
+                compteSearch.length >= 2 && setShowSuggestions(true)
+              }
+              placeholder="Rechercher un compte (n° ou libellé)"
+              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white rounded-lg focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all"
+              required
             />
+
+            {/* Suggestions */}
+            {showSuggestions && compteSuggestions.length > 0 && (
+              <div
+                ref={suggestionsRef}
+                className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto"
+              >
+                {compteSuggestions.map((compte) => (
+                  <button
+                    key={compte.numero}
+                    type="button"
+                    onClick={() => handleSelectCompte(compte)}
+                    className="w-full px-3 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors"
+                  >
+                    <span className="font-mono text-sm font-medium text-gray-900">
+                      {compte.numero}
+                    </span>
+                    <span className="ml-2 text-sm text-gray-600">
+                      {compte.libelle}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              Compte fin
-            </label>
-            <input
-              type="text"
-              value={compteFin}
-              onChange={(e) => setCompteFin(e.target.value)}
-              placeholder="Ex: 409"
-              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-            />
-          </div>
+
           <div>
             <label className="block text-xs text-gray-500 mb-1">
               Date début
@@ -146,188 +455,250 @@ export function GrandLivre() {
               type="date"
               value={dateDebut}
               onChange={(e) => setDateDebut(e.target.value)}
-              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+              min={exerciceOuvert?.date_debut}
+              max={exerciceOuvert?.date_fin}
+              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white rounded-lg focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all"
             />
           </div>
+
           <div>
             <label className="block text-xs text-gray-500 mb-1">Date fin</label>
             <input
               type="date"
               value={dateFin}
               onChange={(e) => setDateFin(e.target.value)}
-              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+              min={exerciceOuvert?.date_debut}
+              max={exerciceOuvert?.date_fin}
+              className="w-full h-9 px-3 text-sm border border-gray-300 bg-white rounded-lg focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all"
             />
           </div>
-        </div>
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            type="button"
-            onClick={handleResetFilters}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
-          >
-            Réinitialiser
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800"
-          >
-            Appliquer
-          </button>
+
+          <div className="flex items-end gap-2">
+            <button
+              type="submit"
+              disabled={!selectedCompte}
+              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+            >
+              Appliquer
+            </button>
+          </div>
         </div>
       </form>
 
-      {/* Liste des comptes */}
-      <div className="space-y-4">
-        {data.map((compte) => (
-          <div
-            key={compte.compte_numero}
-            className="border border-gray-200 overflow-hidden"
-          >
-            {/* En-tête du compte */}
-            <div
-              onClick={() => toggleCompte(compte.compte_numero)}
-              className="p-4 bg-gray-50 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
-            >
-              <div className="flex items-center gap-4 flex-1">
-                <svg
-                  className={`w-5 h-5 text-gray-500 transition-transform ${expandedCompte === compte.compte_numero ? "rotate-90" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-                <div>
+      {/* Résultats */}
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <Spinner size="lg" />
+        </div>
+      ) : data ? (
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+          {/* En-tête du compte */}
+          <div className="p-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-3">
                   <span className="font-mono font-bold text-lg text-gray-900">
-                    {compte.compte_numero}
+                    {data.compte_numero}
                   </span>
-                  <span className="ml-3 text-gray-700">
-                    {compte.compte_libelle}
-                  </span>
-                  <span className="ml-3 text-xs px-2 py-1 bg-gray-200 text-gray-700">
-                    {getTypeCompteLabel(compte.type_compte)}
+                  <span className="text-gray-700">{data.compte_libelle}</span>
+                  <span
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium ${getTypeCompteColor(data.type_compte)}`}
+                  >
+                    {data.type_compte}
                   </span>
                 </div>
               </div>
               <div className="flex items-center gap-6 text-sm">
-                <div>
-                  <span className="text-gray-500">Total débit: </span>
-                  <span className="font-mono text-blue-600">
-                    {formatMontant(compte.total_debit)}
+                <div className="px-3 py-1.5 bg-blue-50 rounded-lg">
+                  <span className="text-blue-600 font-medium">
+                    Total débit:{" "}
+                  </span>
+                  <span className="font-mono text-blue-700">
+                    {formatMontant(data.total_debit)}
                   </span>
                 </div>
-                <div>
-                  <span className="text-gray-500">Total crédit: </span>
-                  <span className="font-mono text-red-600">
-                    {formatMontant(compte.total_credit)}
+                <div className="px-3 py-1.5 bg-red-50 rounded-lg">
+                  <span className="text-red-600 font-medium">
+                    Total crédit:{" "}
                   </span>
-                </div>
-                <div
-                  className={`font-bold ${compte.sens_final === "Débiteur" ? "text-blue-600" : "text-red-600"}`}
-                >
-                  Solde: {formatMontant(compte.solde_final)}
+                  <span className="font-mono text-red-700">
+                    {formatMontant(data.total_credit)}
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Détail du compte */}
-            {expandedCompte === compte.compte_numero && (
-              <div className="p-4 border-t border-gray-200">
-                {compte.lignes.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4">
-                    Aucun mouvement pour ce compte
-                  </p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          N°
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Date
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Libellé
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Pièce
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                          Débit
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                          Crédit
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                          Solde
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {compte.lignes.map((ligne, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 font-mono text-gray-900">
-                            {ligne.id}
-                          </td>
-                          <td className="px-3 py-2 text-gray-700">
-                            {new Date(ligne.date).toLocaleDateString("fr-BI")}
-                          </td>
-                          <td className="px-3 py-2 text-gray-700">
+          {/* Tableau des mouvements */}
+          {data.lignes.length === 0 ? (
+            <p className="text-center text-gray-500 py-12">
+              Aucun mouvement pour ce compte sur la période sélectionnée
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider rounded-tl-lg">
+                        N°
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors"
+                        onClick={() => handleSort("date")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Date {getSortIcon("date")}
+                        </div>
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors"
+                        onClick={() => handleSort("libelle")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Libellé {getSortIcon("libelle")}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                        N° Pièce
+                      </th>
+                      <th
+                        className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors"
+                        onClick={() => handleSort("montant")}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Débit{" "}
+                          {sortField === "montant" && getSortIcon("montant")}
+                        </div>
+                      </th>
+                      <th
+                        className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors"
+                        onClick={() => handleSort("montant")}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Crédit{" "}
+                          {sortField === "montant" && getSortIcon("montant")}
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {paginatedLignes.map((ligne, index) => (
+                      <tr
+                        key={index}
+                        className="hover:bg-gray-50 transition-colors group"
+                      >
+                        <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
+                          #{ligne.id}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                          {new Date(ligne.date).toLocaleDateString("fr-BI")}
+                        </td>
+                        <td className="px-4 py-3 text-gray-900 max-w-md">
+                          <div
+                            className="truncate group-hover:text-gray-600"
+                            title={ligne.libelle}
+                          >
                             {ligne.libelle}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-xs text-gray-500">
-                            {ligne.numero_piece || "-"}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono text-blue-600">
-                            {ligne.debit ? formatMontant(ligne.debit) : "-"}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono text-red-600">
-                            {ligne.credit ? formatMontant(ligne.credit) : "-"}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
-                            {formatMontant(ligne.solde)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50 font-medium">
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="px-3 py-2 text-right text-gray-700"
-                        >
-                          Totaux
+                          </div>
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-blue-600">
-                          {formatMontant(compte.total_debit)}
+                        <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                          {ligne.numero_piece || "-"}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-red-600">
-                          {formatMontant(compte.total_credit)}
+                        <td className="px-4 py-3 text-right font-mono text-blue-600 whitespace-nowrap">
+                          {ligne.debit ? formatMontant(ligne.debit) : "-"}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-gray-900">
-                          {formatMontant(compte.solde_final)}
+                        <td className="px-4 py-3 text-right font-mono text-red-600 whitespace-nowrap">
+                          {ligne.credit ? formatMontant(ligne.credit) : "-"}
                         </td>
                       </tr>
-                    </tfoot>
-                  </table>
-                )}
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50 font-medium">
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-4 py-3 text-lg text-right text-gray-700"
+                      >
+                        Totaux
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-blue-600 whitespace-nowrap border-t border-gray-200 text-[16px]">
+                        {formatMontant(data.total_debit)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-red-600 whitespace-nowrap border-t border-gray-200 text-[16px]">
+                        {formatMontant(data.total_credit)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
-            )}
-          </div>
-        ))}
 
-        {data.length === 0 && (
-          <div className="text-center py-12 border border-gray-200 bg-gray-50">
-            <p className="text-gray-500">Aucun compte trouvé</p>
-          </div>
-        )}
-      </div>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="p-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+                  <div className="text-sm text-gray-500">
+                    Affichage de {(currentPage - 1) * ITEMS_PER_PAGE + 1} à{" "}
+                    {Math.min(currentPage * ITEMS_PER_PAGE, data.lignes.length)}{" "}
+                    sur {data.lignes.length} mouvements
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 border border-gray-300 bg-white text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                      Précédent
+                    </button>
+
+                    {getPageNumbers().map((page, index) =>
+                      page === "..." ? (
+                        <span
+                          key={`dots-${index}`}
+                          className="px-3 py-1 text-gray-500"
+                        >
+                          ...
+                        </span>
+                      ) : (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page as number)}
+                          className={`px-3 py-1 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                            currentPage === page
+                              ? "bg-gray-900 text-white"
+                              : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ),
+                    )}
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 border border-gray-300 bg-white text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : selectedCompte ? (
+        <div className="text-center py-12 border border-gray-200 bg-gray-50 rounded-xl">
+          <p className="text-gray-500">
+            Cliquez sur "Appliquer" pour charger les données
+          </p>
+        </div>
+      ) : (
+        <div className="text-center py-12 border border-gray-200 bg-gray-50 rounded-xl">
+          <p className="text-gray-500">
+            Sélectionnez un compte pour afficher son Grand Livre
+          </p>
+        </div>
+      )}
     </div>
   );
 }

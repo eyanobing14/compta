@@ -107,14 +107,14 @@ export function ClotureDialog({
         <button
           onClick={onCancel}
           disabled={isConfirming}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50 transition-colors cursor-pointer"
         >
           Annuler
         </button>
         <button
           onClick={handleConfirm}
           disabled={isConfirming}
-          className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[140px] justify-center"
+          className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[140px] justify-center transition-colors cursor-pointer"
         >
           {isConfirming ? (
             <>

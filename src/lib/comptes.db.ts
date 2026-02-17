@@ -157,3 +157,19 @@ export async function searchComptes(
     throw error;
   }
 }
+/**
+ * Vérifie si un compte est utilisé dans des écritures
+ */
+export async function checkCompteUsed(numero: string): Promise<boolean> {
+  try {
+    const db = await getDb();
+    const result = await db.select<{ count: number }[]>(
+      "SELECT COUNT(*) as count FROM ecritures WHERE compte_debit = ? OR compte_credit = ?",
+      [numero, numero],
+    );
+    return result[0].count > 0;
+  } catch (error) {
+    console.error("Erreur checkCompteUsed:", error);
+    throw error;
+  }
+}

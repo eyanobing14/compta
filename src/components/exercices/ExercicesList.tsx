@@ -149,7 +149,7 @@ export function ExercicesList({
             <div className="flex justify-end">
               <button
                 onClick={() => setShowConfirmDialog(false)}
-                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800"
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors cursor-pointer"
               >
                 OK
               </button>
@@ -166,7 +166,7 @@ export function ExercicesList({
               <h2 className="text-lg font-bold">Nouvel exercice</h2>
               <button
                 onClick={() => setShowForm(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
               >
                 ✕
               </button>
@@ -196,10 +196,10 @@ export function ExercicesList({
         </div>
         <button
           onClick={handleNouvelExercice}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 flex items-center gap-2"
+          className="px-5 py-3 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors flex items-center gap-2 cursor-pointer"
         >
           <svg
-            className="w-4 h-4"
+            className="w-5 h-5"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -231,7 +231,7 @@ export function ExercicesList({
             <p className="text-gray-500">Aucun exercice créé</p>
             <button
               onClick={() => setShowForm(true)}
-              className="mt-4 px-4 py-2 bg-gray-900 text-white text-sm font-medium hover:bg-gray-800"
+              className="mt-4 px-4 py-2 bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
             >
               Créer le premier exercice
             </button>

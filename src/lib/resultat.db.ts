@@ -1,9 +1,11 @@
+// lib/resultat.db.ts (mise à jour avec analyse par niveau)
 import { getDb } from "./db";
 import {
   CompteResultatData,
   ResultatLine,
   ResultatFilters,
   PeriodeType,
+  ResultatAnalytique,
 } from "../types/resultat";
 
 /**
@@ -113,6 +115,7 @@ export async function getCompteResultat(
       "706": 30, // Prestations de services
       "75": 40, // Autres produits
       "76": 50, // Produits financiers
+      "77": 60, // Produits exceptionnels
     };
 
     const ordreCharges: Record<string, number> = {
@@ -125,6 +128,7 @@ export async function getCompteResultat(
       "64": 60, // Charges de personnel
       "65": 70, // Autres charges
       "66": 80, // Charges financières
+      "67": 85, // Charges exceptionnelles
       "68": 90, // Dotations
     };
 
@@ -136,6 +140,7 @@ export async function getCompteResultat(
           montant: row.montant,
           type: "PRODUIT",
           ordre: ordreProduits[row.numero.substring(0, 3)] || 100,
+          niveau: getNiveauCompte(row.numero, "PRODUIT"),
         });
       } else if (row.type_compte === "CHARGE" && row.montant > 0) {
         charges.push({
@@ -144,6 +149,7 @@ export async function getCompteResultat(
           montant: row.montant,
           type: "CHARGE",
           ordre: ordreCharges[row.numero.substring(0, 3)] || 100,
+          niveau: getNiveauCompte(row.numero, "CHARGE"),
         });
       }
     }
@@ -156,18 +162,35 @@ export async function getCompteResultat(
         libelle: "Ventes de marchandises",
         type: "PRODUIT",
         ordre: 10,
+        niveau: "exploitation",
       },
       {
         numero: "702",
         libelle: "Ventes de produits finis",
         type: "PRODUIT",
         ordre: 20,
+        niveau: "exploitation",
       },
       {
         numero: "706",
         libelle: "Prestations de services",
         type: "PRODUIT",
         ordre: 30,
+        niveau: "exploitation",
+      },
+      {
+        numero: "76",
+        libelle: "Produits financiers",
+        type: "PRODUIT",
+        ordre: 50,
+        niveau: "financier",
+      },
+      {
+        numero: "77",
+        libelle: "Produits exceptionnels",
+        type: "PRODUIT",
+        ordre: 60,
+        niveau: "exceptionnel",
       },
       // Charges sans mouvement
       {
@@ -175,30 +198,49 @@ export async function getCompteResultat(
         libelle: "Achats de marchandises",
         type: "CHARGE",
         ordre: 10,
+        niveau: "exploitation",
       },
       {
         numero: "602",
         libelle: "Achats de matières premières",
         type: "CHARGE",
         ordre: 20,
+        niveau: "exploitation",
       },
       {
         numero: "606",
         libelle: "Achats non stockés",
         type: "CHARGE",
         ordre: 30,
+        niveau: "exploitation",
       },
       {
         numero: "61",
         libelle: "Services extérieurs",
         type: "CHARGE",
         ordre: 40,
+        niveau: "exploitation",
       },
       {
         numero: "64",
         libelle: "Charges de personnel",
         type: "CHARGE",
         ordre: 60,
+        niveau: "exploitation",
+      },
+      {
+        numero: "66",
+        libelle: "Charges financières",
+        type: "CHARGE",
+        ordre: 80,
+        niveau: "financier",
+      },
+      {
+        numero: "67",
+        libelle: "Charges exceptionnelles",
+        type: "CHARGE",
+        ordre: 85,
+        niveau: "exceptionnel",
       },
     ];
 
@@ -215,6 +257,7 @@ export async function getCompteResultat(
             montant: 0,
             type: "PRODUIT",
             ordre: fixe.ordre,
+            niveau: fixe.niveau as any,
           });
         } else {
           charges.push({
@@ -223,6 +266,7 @@ export async function getCompteResultat(
             montant: 0,
             type: "CHARGE",
             ordre: fixe.ordre,
+            niveau: fixe.niveau as any,
           });
         }
       }
@@ -251,7 +295,8 @@ export async function getCompteResultat(
       resultat: {
         montant: Math.abs(resultat),
         type: resultat >= 0 ? "BENEFICE" : "PERTE",
-        taux_marge: totalProduits > 0 ? (resultat / totalProduits) * 100 : 0,
+        taux_marge:
+          totalProduits > 0 ? (Math.abs(resultat) / totalProduits) * 100 : 0,
       },
       periode,
     };
@@ -262,94 +307,83 @@ export async function getCompteResultat(
 }
 
 /**
- * Calcule le résultat pour plusieurs périodes (comparaison)
+ * Détermine le niveau d'un compte (exploitation, financier, exceptionnel)
  */
-export async function getResultatComparatif(
-  periode1: ResultatFilters,
-  periode2: ResultatFilters,
-): Promise<{
-  periode1: CompteResultatData;
-  periode2: CompteResultatData;
-  evolution: {
-    montant: number;
-    pourcentage: number;
-  };
-}> {
-  try {
-    const [res1, res2] = await Promise.all([
-      getCompteResultat(periode1),
-      getCompteResultat(periode2),
-    ]);
+function getNiveauCompte(
+  numero: string,
+  type: "PRODUIT" | "CHARGE",
+): "exploitation" | "financier" | "exceptionnel" {
+  const debut = numero.substring(0, 2);
 
-    const evolutionMontant = res2.resultat.montant - res1.resultat.montant;
-    const evolutionPourcentage =
-      res1.resultat.montant !== 0
-        ? (evolutionMontant / res1.resultat.montant) * 100
-        : 0;
-
-    return {
-      periode1: res1,
-      periode2: res2,
-      evolution: {
-        montant: evolutionMontant,
-        pourcentage: evolutionPourcentage,
-      },
-    };
-  } catch (error) {
-    console.error("Erreur getResultatComparatif:", error);
-    throw error;
+  if (type === "PRODUIT") {
+    if (debut === "76") return "financier";
+    if (debut === "77") return "exceptionnel";
+    return "exploitation";
+  } else {
+    if (debut === "66") return "financier";
+    if (debut === "67") return "exceptionnel";
+    return "exploitation";
   }
 }
 
 /**
- * Exporte le compte de résultat au format CSV
+ * Calcule l'analyse détaillée du résultat par niveau
  */
-export async function exportResultatToCSV(
+export async function getResultatAnalytique(
   filters: ResultatFilters,
-): Promise<string> {
+): Promise<ResultatAnalytique> {
   try {
     const data = await getCompteResultat(filters);
 
-    const headers = ["Compte", "Libellé", "Montant"];
-    const rows: string[] = [];
+    // Calcul par niveau
+    let produitsExploitation = 0;
+    let produitsFinanciers = 0;
+    let produitsExceptionnels = 0;
+    let chargesExploitation = 0;
+    let chargesFinancieres = 0;
+    let chargesExceptionnelles = 0;
 
-    // Produits
-    rows.push("PRODUITS");
     for (const ligne of data.produits.lignes) {
-      rows.push(
-        [
-          ligne.compte_numero,
-          `"${ligne.compte_libelle.replace(/"/g, '""')}"`,
-          ligne.montant.toString(),
-        ].join(","),
-      );
+      if (ligne.niveau === "exploitation")
+        produitsExploitation += ligne.montant;
+      else if (ligne.niveau === "financier")
+        produitsFinanciers += ligne.montant;
+      else if (ligne.niveau === "exceptionnel")
+        produitsExceptionnels += ligne.montant;
     }
-    rows.push(`"TOTAL PRODUITS",,${data.produits.total}`);
-    rows.push("");
 
-    // Charges
-    rows.push("CHARGES");
     for (const ligne of data.charges.lignes) {
-      rows.push(
-        [
-          ligne.compte_numero,
-          `"${ligne.compte_libelle.replace(/"/g, '""')}"`,
-          ligne.montant.toString(),
-        ].join(","),
-      );
-    }
-    rows.push(`"TOTAL CHARGES",,${data.charges.total}`);
-    rows.push("");
-
-    // Résultat
-    rows.push(`"RÉSULTAT (${data.resultat.type})",,${data.resultat.montant}`);
-    if (data.resultat.taux_marge !== undefined) {
-      rows.push(`"Taux de marge",,${data.resultat.taux_marge.toFixed(2)}%`);
+      if (ligne.niveau === "exploitation") chargesExploitation += ligne.montant;
+      else if (ligne.niveau === "financier")
+        chargesFinancieres += ligne.montant;
+      else if (ligne.niveau === "exceptionnel")
+        chargesExceptionnelles += ligne.montant;
     }
 
-    return [headers.join(","), ...rows].join("\n");
+    const resultatExploitation = produitsExploitation - chargesExploitation;
+    const resultatFinancier = produitsFinanciers - chargesFinancieres;
+    const resultatExceptionnel = produitsExceptionnels - chargesExceptionnelles;
+    const totalProduits = data.produits.total;
+
+    return {
+      resultat_exploitation: resultatExploitation,
+      resultat_financier: resultatFinancier,
+      resultat_exceptionnel: resultatExceptionnel,
+      produits_exploitation: produitsExploitation,
+      charges_exploitation: chargesExploitation,
+      produits_financiers: produitsFinanciers,
+      charges_financieres: chargesFinancieres,
+      produits_exceptionnels: produitsExceptionnels,
+      charges_exceptionnelles: chargesExceptionnelles,
+      ratio_exploitation:
+        totalProduits > 0 ? (resultatExploitation / totalProduits) * 100 : 0,
+      ratio_financier:
+        totalProduits > 0 ? (resultatFinancier / totalProduits) * 100 : 0,
+      ratio_exceptionnel:
+        totalProduits > 0 ? (resultatExceptionnel / totalProduits) * 100 : 0,
+    };
   } catch (error) {
-    console.error("Erreur exportResultatToCSV:", error);
+    console.error("Erreur getResultatAnalytique:", error);
     throw error;
   }
 }

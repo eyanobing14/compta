@@ -4,20 +4,24 @@ import {
   createEcriture,
   getLastNumeroPiece,
   searchComptesForEcriture,
+  checkNumeroPieceExists,
 } from "../../lib/ecritures.db";
 import { CompteSearch } from "./CompteSearch";
 import { Spinner } from "../exercices/Spinner";
+import { Exercice } from "../../types/exercice";
 
 interface EcritureFormProps {
   onSubmit: (data: EcritureFormData) => Promise<void>;
   onCancel: () => void;
   initialData?: Partial<EcritureFormData>;
+  exerciceActif?: Exercice | null;
 }
 
 export function EcritureForm({
   onSubmit,
   onCancel,
   initialData,
+  exerciceActif,
 }: EcritureFormProps) {
   const [formData, setFormData] = useState<EcritureFormData>({
     date: initialData?.date || new Date().toISOString().split("T")[0],
@@ -25,13 +29,15 @@ export function EcritureForm({
     compte_debit: initialData?.compte_debit || "",
     compte_credit: initialData?.compte_credit || "",
     montant: initialData?.montant || "",
-    numero_piece: initialData?.numero_piece || "", // Ne pas générer automatiquement
+    numero_piece: initialData?.numero_piece || "",
     observation: initialData?.observation || "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingPiece, setIsGeneratingPiece] = useState(false);
+  const [dateError, setDateError] = useState<string>("");
+  const [pieceError, setPieceError] = useState<string>("");
 
   // États pour le dropdown des comptes
   const [comptesDebit, setComptesDebit] = useState<
@@ -51,8 +57,45 @@ export function EcritureForm({
   const [isSearchingDebit, setIsSearchingDebit] = useState(false);
   const [isSearchingCredit, setIsSearchingCredit] = useState(false);
 
-  // NE PAS générer automatiquement le numéro de pièce
-  // Supprimer ou commenter le useEffect qui appelait getLastNumeroPiece
+  // Valider la date par rapport à l'exercice
+  useEffect(() => {
+    if (exerciceActif && formData.date) {
+      if (formData.date < exerciceActif.date_debut) {
+        setDateError(
+          `La date doit être ≥ ${new Date(exerciceActif.date_debut).toLocaleDateString("fr-BI")}`,
+        );
+      } else if (formData.date > exerciceActif.date_fin) {
+        setDateError(
+          `La date doit être ≤ ${new Date(exerciceActif.date_fin).toLocaleDateString("fr-BI")}`,
+        );
+      } else {
+        setDateError("");
+      }
+    }
+  }, [formData.date, exerciceActif]);
+
+  // Vérifier si le numéro de pièce existe déjà
+  useEffect(() => {
+    const checkPieceExists = async () => {
+      if (formData.numero_piece && formData.numero_piece.trim() !== "") {
+        try {
+          const exists = await checkNumeroPieceExists(formData.numero_piece);
+          if (exists) {
+            setPieceError("Ce numéro de pièce existe déjà");
+          } else {
+            setPieceError("");
+          }
+        } catch (error) {
+          console.error("Erreur vérification numéro pièce:", error);
+        }
+      } else {
+        setPieceError("");
+      }
+    };
+
+    const timeoutId = setTimeout(checkPieceExists, 500);
+    return () => clearTimeout(timeoutId);
+  }, [formData.numero_piece]);
 
   // Debounce pour la recherche des comptes débit
   useEffect(() => {
@@ -104,17 +147,59 @@ export function EcritureForm({
     return () => clearTimeout(timeoutId);
   }, [searchCreditTerm, formData.compte_debit]);
 
-  // Fonction pour générer manuellement un numéro de pièce (optionnel)
+  // Fonction pour générer un numéro de pièce basé sur l'année de l'exercice
   const handleGeneratePiece = async () => {
+    if (!exerciceActif) {
+      setPieceError("Aucun exercice actif");
+      return;
+    }
+
     setIsGeneratingPiece(true);
+    setPieceError("");
+
     try {
-      const lastNumero = await getLastNumeroPiece();
-      setFormData((prev) => ({ ...prev, numero_piece: lastNumero }));
+      // Extraire l'année de l'exercice
+      const annee = new Date(exerciceActif.date_debut).getFullYear();
+      const prefix = `PIECE-${annee}-`;
+
+      // Récupérer le dernier numéro de pièce pour cette année
+      const lastNumero = await getLastNumeroPiece(annee);
+
+      // Incrémenter le numéro
+      let nouveauNumero = lastNumero;
+      let exists = true;
+      let tentative = 0;
+      const maxTentatives = 100; // Sécurité pour éviter une boucle infinie
+
+      // Vérifier si le numéro généré existe déjà et en générer un nouveau si nécessaire
+      while (exists && tentative < maxTentatives) {
+        exists = await checkNumeroPieceExists(nouveauNumero);
+        if (exists) {
+          // Extraire le numéro actuel et l'incrémenter
+          const currentNum = parseInt(nouveauNumero.split("-").pop() || "0");
+          const nextNum = (currentNum + 1).toString().padStart(4, "0");
+          nouveauNumero = `${prefix}${nextNum}`;
+        }
+        tentative++;
+      }
+
+      if (tentative >= maxTentatives) {
+        throw new Error("Impossible de générer un numéro de pièce unique");
+      }
+
+      setFormData((prev) => ({ ...prev, numero_piece: nouveauNumero }));
     } catch (error) {
       console.error("Erreur génération numéro pièce:", error);
+      setPieceError("Erreur lors de la génération du numéro");
     } finally {
       setIsGeneratingPiece(false);
     }
+  };
+
+  // Fonction pour définir la date à aujourd'hui
+  const handleSetToday = () => {
+    const today = new Date().toISOString().split("T")[0];
+    setFormData((prev) => ({ ...prev, date: today }));
   };
 
   const validate = (): boolean => {
@@ -122,6 +207,8 @@ export function EcritureForm({
 
     if (!formData.date) {
       newErrors.date = "La date est requise";
+    } else if (dateError) {
+      newErrors.date = dateError;
     }
 
     if (!formData.libelle.trim()) {
@@ -153,7 +240,9 @@ export function EcritureForm({
       }
     }
 
-    // NE PAS valider le numéro de pièce - il peut être vide
+    if (formData.numero_piece && pieceError) {
+      newErrors.numero_piece = pieceError;
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -223,8 +312,10 @@ export function EcritureForm({
                 setFormData((prev) => ({ ...prev, date: e.target.value }));
                 setErrors((prev) => ({ ...prev, date: "" }));
               }}
-              className={`w-full h-10 pl-10 pr-4 text-sm border ${
-                errors.date ? "border-red-500" : "border-gray-300"
+              min={exerciceActif?.date_debut}
+              max={exerciceActif?.date_fin}
+              className={`w-full h-10 pl-10 pr-20 text-sm border rounded-lg ${
+                errors.date || dateError ? "border-red-500" : "border-gray-300"
               } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
             />
             <svg
@@ -240,9 +331,33 @@ export function EcritureForm({
                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
               />
             </svg>
+
+            {/* Bouton Aujourd'hui uniquement */}
+            <button
+              type="button"
+              onClick={handleSetToday}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded transition-colors cursor-pointer"
+              title="Aujourd'hui"
+            >
+              Auj
+            </button>
           </div>
-          {errors.date && (
-            <p className="mt-1 text-xs text-red-500">{errors.date}</p>
+
+          {/* Affichage de la période de l'exercice */}
+          {exerciceActif && (
+            <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+              <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+              <span>
+                {new Date(exerciceActif.date_debut).toLocaleDateString("fr-BI")}{" "}
+                → {new Date(exerciceActif.date_fin).toLocaleDateString("fr-BI")}
+              </span>
+            </div>
+          )}
+
+          {(errors.date || dateError) && (
+            <p className="mt-1 text-xs text-red-500">
+              {errors.date || dateError}
+            </p>
           )}
         </div>
 
@@ -265,10 +380,12 @@ export function EcritureForm({
                 }));
                 setErrors((prev) => ({ ...prev, numero_piece: "" }));
               }}
-              className={`w-full h-10 pl-10 pr-10 text-sm border ${
-                errors.numero_piece ? "border-red-500" : "border-gray-300"
+              className={`w-full h-10 pl-10 pr-20 text-sm border rounded-lg ${
+                errors.numero_piece || pieceError
+                  ? "border-red-500"
+                  : "border-gray-300"
               } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
-              placeholder="Optionnel - laisser vide si non nécessaire"
+              placeholder="Optionnel"
             />
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
@@ -286,15 +403,31 @@ export function EcritureForm({
             <button
               type="button"
               onClick={handleGeneratePiece}
-              disabled={isGeneratingPiece}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded transition-colors cursor-pointer disabled:opacity-50"
+              disabled={isGeneratingPiece || !exerciceActif}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
               title="Générer automatiquement"
             >
-              {isGeneratingPiece ? <Spinner size="sm" /> : "Générer"}
+              {isGeneratingPiece ? (
+                <>
+                  <Spinner size="sm" />
+                  <span>...</span>
+                </>
+              ) : (
+                "Générer"
+              )}
             </button>
           </div>
+          {pieceError && (
+            <p className="mt-1 text-xs text-red-500">{pieceError}</p>
+          )}
           {errors.numero_piece && (
             <p className="mt-1 text-xs text-red-500">{errors.numero_piece}</p>
+          )}
+          {exerciceActif && (
+            <p className="mt-1 text-xs text-gray-500">
+              Format: PIECE-{new Date(exerciceActif.date_debut).getFullYear()}
+              -XXXX
+            </p>
           )}
         </div>
       </div>
@@ -315,7 +448,7 @@ export function EcritureForm({
             setFormData((prev) => ({ ...prev, libelle: e.target.value }));
             setErrors((prev) => ({ ...prev, libelle: "" }));
           }}
-          className={`w-full h-10 px-4 text-sm border ${
+          className={`w-full h-10 px-4 text-sm border rounded-lg ${
             errors.libelle ? "border-red-500" : "border-gray-300"
           } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
           placeholder="Description de l'écriture"
@@ -350,7 +483,7 @@ export function EcritureForm({
                   setShowDebitDropdown(true);
                 }}
                 onFocus={() => setShowDebitDropdown(true)}
-                className={`w-full h-10 pl-10 pr-10 text-sm border ${
+                className={`w-full h-10 pl-10 pr-10 text-sm border rounded-lg ${
                   errors.compte_debit ? "border-red-500" : "border-gray-300"
                 } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
                 placeholder="Rechercher compte débit..."
@@ -377,7 +510,7 @@ export function EcritureForm({
 
             {/* Dropdown des résultats débit */}
             {showDebitDropdown && comptesDebit.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 border border-gray-200 bg-white shadow-lg max-h-64 overflow-auto">
+              <div className="absolute z-50 w-full mt-1 border border-gray-200 bg-white rounded-lg shadow-lg max-h-64 overflow-auto">
                 {comptesDebit.map((compte) => (
                   <button
                     key={compte.numero}
@@ -426,7 +559,7 @@ export function EcritureForm({
                   setShowCreditDropdown(true);
                 }}
                 onFocus={() => setShowCreditDropdown(true)}
-                className={`w-full h-10 pl-10 pr-10 text-sm border ${
+                className={`w-full h-10 pl-10 pr-10 text-sm border rounded-lg ${
                   errors.compte_credit ? "border-red-500" : "border-gray-300"
                 } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
                 placeholder="Rechercher compte crédit..."
@@ -453,7 +586,7 @@ export function EcritureForm({
 
             {/* Dropdown des résultats crédit */}
             {showCreditDropdown && comptesCredit.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 border border-gray-200 bg-white shadow-lg max-h-64 overflow-auto">
+              <div className="absolute z-50 w-full mt-1 border border-gray-200 bg-white rounded-lg shadow-lg max-h-64 overflow-auto">
                 {comptesCredit.map((compte) => (
                   <button
                     key={compte.numero}
@@ -499,7 +632,7 @@ export function EcritureForm({
             }}
             step="1"
             min="1"
-            className={`w-full h-10 pl-10 pr-4 text-sm border ${
+            className={`w-full h-10 pl-10 pr-4 text-sm border rounded-lg ${
               errors.montant ? "border-red-500" : "border-gray-300"
             } bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors cursor-text`}
             placeholder="0"
@@ -538,7 +671,7 @@ export function EcritureForm({
             setFormData((prev) => ({ ...prev, observation: e.target.value }))
           }
           rows={3}
-          className="w-full px-4 py-2 text-sm border border-gray-300 bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors resize-none cursor-text"
+          className="w-full px-4 py-2 text-sm border border-gray-300 bg-white rounded-lg focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors resize-none cursor-text"
           placeholder="Informations complémentaires..."
         />
       </div>
@@ -549,14 +682,14 @@ export function EcritureForm({
           type="button"
           onClick={onCancel}
           disabled={isLoading}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 cursor-pointer"
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 cursor-pointer"
         >
           Annuler
         </button>
         <button
           type="submit"
-          disabled={isLoading}
-          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 flex items-center gap-2 min-w-[140px] justify-center cursor-pointer"
+          disabled={isLoading || !!dateError || !!pieceError}
+          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 flex items-center gap-2 min-w-[140px] justify-center cursor-pointer"
         >
           {isLoading ? (
             <>

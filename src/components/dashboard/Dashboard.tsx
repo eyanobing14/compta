@@ -1,7 +1,11 @@
+// Dashboard.tsx (mise à jour)
 import React, { useState, useEffect } from "react";
 import { ExercicesList } from "../exercices/ExercicesList";
 import { ComptesList } from "../comptes/ComptesList";
 import { Journal } from "../ecritures/Journal";
+import { GrandLivre } from "../grand-livre/GrandLivre";
+import { Balance } from "../balance/Balance";
+import { CompteResultat } from "../resultat/CompteResultat";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { getExercices } from "../../lib/exercice.db";
 import { Exercice } from "../../types/exercice";
@@ -12,8 +16,8 @@ interface DashboardProps {
 
 export function Dashboard({ currentFile }: DashboardProps) {
   const [currentView, setCurrentView] = useState<
-    "exercices" | "comptes" | "journal"
-  >("comptes"); // Changé de "exercices" à "comptes" pour commencer par les comptes
+    "exercices" | "comptes" | "journal" | "grand-livre" | "balance" | "resultat"
+  >("comptes");
   const [exerciceOuvert, setExerciceOuvert] = useState<Exercice | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -61,7 +65,7 @@ export function Dashboard({ currentFile }: DashboardProps) {
                 />
               </svg>
               <span
-                className="font-mono truncate text-[16px] text-gay-500"
+                className="font-mono truncate text-[16px] text-gray-500"
                 title={currentFile}
               >
                 {currentFile.split(/[\\/]/).pop()}
@@ -91,7 +95,13 @@ export function Dashboard({ currentFile }: DashboardProps) {
                       {exerciceOuvert.nom_exercice}
                     </span>
                     <br />
-                    {exerciceOuvert.date_debut} → {exerciceOuvert.date_fin}
+                    {new Date(exerciceOuvert.date_debut).toLocaleDateString(
+                      "fr-BI",
+                    )}{" "}
+                    →{" "}
+                    {new Date(exerciceOuvert.date_fin).toLocaleDateString(
+                      "fr-BI",
+                    )}
                   </p>
                 </>
               ) : (
@@ -115,7 +125,7 @@ export function Dashboard({ currentFile }: DashboardProps) {
             {/* Comptes - en premier */}
             <button
               onClick={() => setCurrentView("comptes")}
-              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 transition-colors ${
+              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 transition-colors cursor-pointer ${
                 currentView === "comptes"
                   ? "bg-black text-white"
                   : "hover:bg-gray-100"
@@ -137,35 +147,10 @@ export function Dashboard({ currentFile }: DashboardProps) {
               <span>Plan comptable</span>
             </button>
 
-            {/* Exercices */}
-            <button
-              onClick={() => setCurrentView("exercices")}
-              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 transition-colors ${
-                currentView === "exercices"
-                  ? "bg-black text-white"
-                  : "hover:bg-gray-100"
-              }`}
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <span>Exercices</span>
-            </button>
-
             {/* Journal */}
             <button
               onClick={() => setCurrentView("journal")}
-              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 transition-colors ${
+              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 transition-colors cursor-pointer ${
                 currentView === "journal"
                   ? "bg-black text-white"
                   : "hover:bg-gray-100"
@@ -186,6 +171,106 @@ export function Dashboard({ currentFile }: DashboardProps) {
               </svg>
               <span>Journal</span>
             </button>
+
+            {/* Grand Livre */}
+            <button
+              onClick={() => setCurrentView("grand-livre")}
+              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 transition-colors cursor-pointer ${
+                currentView === "grand-livre"
+                  ? "bg-black text-white"
+                  : "hover:bg-gray-100"
+              }`}
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
+              </svg>
+              <span>Grand Livre</span>
+            </button>
+
+            {/* Balance */}
+            <button
+              onClick={() => setCurrentView("balance")}
+              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 transition-colors cursor-pointer ${
+                currentView === "balance"
+                  ? "bg-black text-white"
+                  : "hover:bg-gray-100"
+              }`}
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                />
+              </svg>
+              <span>Balance</span>
+            </button>
+
+            {/* Compte de Résultat */}
+            <button
+              onClick={() => setCurrentView("resultat")}
+              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 transition-colors cursor-pointer ${
+                currentView === "resultat"
+                  ? "bg-black text-white"
+                  : "hover:bg-gray-100"
+              }`}
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                />
+              </svg>
+              <span>Compte de résultat</span>
+            </button>
+
+            {/* Exercices */}
+            <button
+              onClick={() => setCurrentView("exercices")}
+              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 transition-colors cursor-pointer ${
+                currentView === "exercices"
+                  ? "bg-black text-white"
+                  : "hover:bg-gray-100"
+              }`}
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <span>Exercices</span>
+            </button>
           </nav>
         </div>
 
@@ -204,6 +289,9 @@ export function Dashboard({ currentFile }: DashboardProps) {
             {currentView === "comptes" && "Plan comptable"}
             {currentView === "exercices" && "Gestion des exercices"}
             {currentView === "journal" && "Journal des écritures"}
+            {currentView === "grand-livre" && "Grand Livre"}
+            {currentView === "balance" && "Balance comptable"}
+            {currentView === "resultat" && "Compte de résultat"}
           </h2>
         </div>
         <ErrorBoundary
@@ -212,7 +300,7 @@ export function Dashboard({ currentFile }: DashboardProps) {
               <p className="text-red-700">Une erreur est survenue</p>
               <button
                 onClick={() => window.location.reload()}
-                className="mt-4 px-4 py-2 bg-red-600 text-white rounded"
+                className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors cursor-pointer"
               >
                 Réessayer
               </button>
@@ -220,6 +308,16 @@ export function Dashboard({ currentFile }: DashboardProps) {
           }
         >
           {currentView === "comptes" && <ComptesList />}
+          {currentView === "journal" && <Journal />}
+          {currentView === "grand-livre" && (
+            <GrandLivre exerciceOuvert={exerciceOuvert} />
+          )}
+          {currentView === "balance" && (
+            <Balance exerciceOuvert={exerciceOuvert} />
+          )}
+          {currentView === "resultat" && (
+            <CompteResultat exerciceOuvert={exerciceOuvert} />
+          )}
           {currentView === "exercices" && (
             <ExercicesList
               exerciceOuvert={exerciceOuvert}
@@ -234,7 +332,6 @@ export function Dashboard({ currentFile }: DashboardProps) {
               }}
             />
           )}
-          {currentView === "journal" && <Journal />}
         </ErrorBoundary>
       </main>
     </div>

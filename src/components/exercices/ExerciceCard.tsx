@@ -38,7 +38,7 @@ export function ExerciceCard({
             <button
               onClick={() => onCloturer(exercice.id, exercice.nom_exercice)}
               disabled={clotureEnCours === exercice.id}
-              className="px-3 py-1 text-sm bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50 flex items-center gap-1 min-w-[80px] justify-center"
+              className="px-3 py-1 text-sm bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50 flex items-center gap-1 min-w-[80px] justify-center transition-colors cursor-pointer"
             >
               {clotureEnCours === exercice.id ? (
                 <>

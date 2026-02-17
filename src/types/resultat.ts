@@ -1,9 +1,10 @@
+// types/resultat.ts (simplifié)
 export interface ResultatLine {
   compte_numero: string;
   compte_libelle: string;
   montant: number;
   type: "PRODUIT" | "CHARGE";
-  ordre: number; // Pour l'affichage dans l'ordre
+  ordre: number;
 }
 
 export interface ResultatSection {
@@ -18,7 +19,7 @@ export interface CompteResultatData {
   resultat: {
     montant: number;
     type: "BENEFICE" | "PERTE";
-    taux_marge?: number; // Résultat / Total produits
+    taux_marge?: number;
   };
   periode: {
     debut: string;
@@ -27,7 +28,12 @@ export interface CompteResultatData {
   };
 }
 
-export type PeriodeType = "mois" | "trimestre" | "annee" | "personnalisee";
+export type PeriodeType =
+  | "mois"
+  | "trimestre"
+  | "annee"
+  | "personnalisee"
+  | "exercice";
 
 export interface ResultatFilters {
   periodeType: PeriodeType;
